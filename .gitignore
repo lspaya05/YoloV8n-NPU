@@ -1,0 +1,81 @@
+# ========================
+# Global Ignores
+# ========================
+*.log
+*.jou
+*.tmp
+*.bak
+*~
+
+# ========================
+# Vivado-Specific Ignores
+# ========================
+/vivado/.Xil/
+/vivado/*.cache/
+/vivado/*.hw/
+/vivado/*.ip_user_files/
+/vivado/*.runs/
+/vivado/*.sim/
+/vivado/*.webtalk/
+/vivado/.Xil/
+/vivado/*.str
+/vivado/*_backup.xpr
+/vivado/*.dmp
+/vivado/*.restore
+
+# Optional: Ignore Vivado-generated project files if storing only sources
+#/vivado/*.xpr
+#/vivado/*.xpr.user
+#/vivado/*.xgui
+#/vivado/*.dcp
+#/vivado/*.ltx
+#/vivado/*.xml
+
+# ========================
+# Quartus-Specific Ignores
+# ========================
+/quartus/db/
+/quartus/incremental_db/
+/quartus/output_files/
+/quartus/*.rpt
+/quartus/*.qws
+/quartus/*.smsg
+/quartus/*.bak*
+/quartus/*.chg
+/quartus/*.pof
+/quartus/*.sof
+/quartus/*.sdf
+/quartus/*.jam
+/quartus/*.jic
+/quartus/*.summary
+/quartus/*.pin
+/quartus/*.qdf
+
+# ========================
+# Simulation Outputs
+# ========================
+/scripts/sim/work
+/scripts/sim/waves/*.wlf
+/scripts/sim/transcript
+/scripts/sim/modelsim/vsim.wlf
+/scripts/sim/modelsim.ini
+/scripts/sim/*.log
+/scripts/sim/*.vcd
+/scripts/sim/*.vpd
+/scripts/sim/*.svf
+
+# ========================
+# IDE / OS Misc
+# ========================
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+
+# ========================
+# Latex
+# ========================
+*.aux
+*.fdb_latexmk
+*.fls 
+*.gz
