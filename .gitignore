@@ -79,3 +79,8 @@ Thumbs.db
 *.fdb_latexmk
 *.fls 
 *.gz
+
+# ========================
+# Claude
+# ========================
+.claude/settings.local.json
