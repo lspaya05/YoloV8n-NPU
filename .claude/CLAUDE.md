@@ -21,7 +21,8 @@ SystemVerilog Neural Engine, systolic array dataflow, target = AMD Kria **KR260*
 - [scripts/sim/](../scripts/sim/) — ModelSim launchers; entrypoint [scripts/sim/runlab.do](../scripts/sim/runlab.do)
 - [scripts/waves/](../scripts/waves/) — `<module>_wave.do`
 - [vivado/](../vivado/) — Vivado project (most outputs gitignored)
-- [papers/](../papers/) — reference PDFs
+- [notes](../notes/) — reference notes for designers.
+- [notes/papers/](../notes/papers/) — reference PDFs
 - [benchmarks/](../benchmarks/) — perf data
 
 ## What NOT to do
