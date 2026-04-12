@@ -1,0 +1,5 @@
+-no-tabs
+-line-length=length:100
+-no-trailing-spaces
+-posix-eof
+-module-filename

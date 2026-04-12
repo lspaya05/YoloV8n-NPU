@@ -2,7 +2,7 @@ Always be extremely concise. Sacrifice grammar for the sake of concision.
 
 # EE470 Final Project — Neural Engine
 
-SystemVerilog Neural Engine, systolic array dataflow, target = AMD Kria **KR260** (K26 SOM, Zynq UltraScale+ MPSoC). For board specs, dataflow choices, sizing, papers — use the [npu-architect](skills/npu-architect/SKILL.md) skill.
+SystemVerilog Neural Engine, systolic array dataflow, target = AMD Kria **KR260** (K26 SOM, Zynq UltraScale+ MPSoC). For board specs, dataflow choices, sizing, papers — use the [npu-architect](skills/npu-architect/SKILL.md) skill. To generate header comments — use the [comment-generator](skills/comment-generator/SKILL.md) skill.
 
 ## Toolchain (pinned)
 
