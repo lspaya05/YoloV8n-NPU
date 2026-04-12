@@ -1,5 +1,5 @@
 // Name: Leonard Paya, Bernardo Lin
-// Date: 2026-04-11
+// Date: 2026-04-12
 // Weight-stationary PE that latches a weight, multiplies it with each incoming activation, and accumulates the result into a widened register while forwarding weight and activation to neighboring PEs.
 // Parameters:
 //     - FORMAT_BITWIDTH: Bit width of weight and activation data paths
@@ -30,10 +30,10 @@ module ProcessingElement #(
 
     //Logic variables for held weight and result
     logic signed [FORMAT_BITWIDTH - 1 : 0] weight;
-    logic signed [MUL_OUT_BITWIDTH- 1 : 0] MulOut;
+    logic signed [MUL_OUT_BITWIDTH- 1 : 0] mulOut;
     logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] adderOut;
 
-    //ReFORMAT_BITWIDTHting Bits
+    //Reformatting Bits
     logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] adderIn1;
     assign adderIn1 = {{(ACCUMULATOR_BITWIDTH - FORMAT_BITWIDTH){mulOut[MUL_OUT_BITWIDTH - 1]}}, mulOut};
 
@@ -49,8 +49,8 @@ module ProcessingElement #(
     always_ff @(posedge clk) begin
         if (rst) begin
             weight <= 0;
-            activation <= 0;
             weightOut <= 0;
+            activationOut <= 0;
             activationOut <= 0;
         end else if (loadWeight) begin
             weight <= weightIn;

@@ -3,3 +3,4 @@
 -no-trailing-spaces
 -posix-eof
 -module-filename
+-unpacked-dimensions-range-ordering
