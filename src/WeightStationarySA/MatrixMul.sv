@@ -18,6 +18,8 @@
 //     - MatrixMulOut: ARRAY_LENGTH ACCUMULATOR_BITWIDTH-bit accumulated dot products from the bottom PE row
 //Expects inputs for activations and mul to be the same. as that is in param
 
+// Flagged by Codex regarding indexing, might need to take a look
+
 module MatrixMul #(
     parameter int FORMAT_BITWIDTH = 8,
     parameter int ACCUMULATOR_BITWIDTH = 32,
