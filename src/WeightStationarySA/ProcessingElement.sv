@@ -51,7 +51,7 @@ module ProcessingElement #(
             weight <= 0;
             weightOut <= 0;
             activationOut <= 0;
-            activationOut <= 0;
+            accumlatorOut <= 0;
         end else if (loadWeight) begin
             weight <= weightIn;
             weightOut <= weightIn;
