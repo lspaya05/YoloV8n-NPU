@@ -1,0 +1,21 @@
+// 4x4 weight matrix — identity (row-major, one 8-bit entry per line)
+// Row 0: W[0][0..3]
+01
+00
+00
+00
+// Row 1: W[1][0..3]
+00
+01
+00
+00
+// Row 2: W[2][0..3]
+00
+00
+01
+00
+// Row 3: W[3][0..3]
+00
+00
+00
+01

@@ -17,4 +17,4 @@ module Adder #(
     output logic signed [BIT_WIDTH - 1 : 0] out
 );
     assign out = in0 + in1;
-endmodule 
+endmodule

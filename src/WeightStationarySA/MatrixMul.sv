@@ -16,25 +16,24 @@
 //     - activationInputCol: ARRAY_HEIGHT FORMAT_BITWIDTH-bit activations fed into the leftmost PE column
 // Outputs:
 //     - MatrixMulOut: ARRAY_LENGTH ACCUMULATOR_BITWIDTH-bit accumulated dot products from the bottom PE row
-//Expects inputs for activations and mul to be the same. as that is in param
-
-// Flagged by Codex regarding indexing, might need to take a look
-
 module MatrixMul #(
     parameter int FORMAT_BITWIDTH = 8,
     parameter int ACCUMULATOR_BITWIDTH = 32,
     parameter int ARRAY_HEIGHT = 16,
     parameter int ARRAY_LENGTH = 16
 ) (
-    input logic clk, rst, loadingWeight_c, //@BERNARDO: honestly the FSM needs to decide when the loading is done... 
-    input logic signed [FORMAT_BITWIDTH - 1 : 0] weightInputRow [ARRAY_LENGTH - 1 : 0], // @LEONARD NEEDS TO LOAD Bottom TO TOP
-    input logic signed [FORMAT_BITWIDTH - 1 : 0] activationInputCol [ARRAY_HEIGHT - 1 : 0], //THis can load left to right just needs the skew
-    output logic [ACCUMULATOR_BITWIDTH - 1 : 0] MatrixMulOut [ARRAY_LENGTH - 1 : 0] // will prob need a fifo outside this output? 
+    input logic clk, rst, loadingWeight_c,  
+    input logic signed [FORMAT_BITWIDTH - 1 : 0] weightInputRow [ARRAY_LENGTH - 1 : 0],
+    input logic signed [FORMAT_BITWIDTH - 1 : 0] activationInputCol [ARRAY_HEIGHT - 1 : 0],
+    output logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] MatrixMulOut [ARRAY_LENGTH - 1 : 0]
 );
-    // Intermediate PE Signals: 
-    logic [ACCUMULATOR_BITWIDTH - 1 : 0] accumulateOut [ARRAY_HEIGHT - 1 : 0][ARRAY_LENGTH - 1 : 0];
-    logic [FORMAT_BITWIDTH - 1 : 0] weightOut [ARRAY_HEIGHT - 1 : 0][ARRAY_LENGTH - 1 : 0];
-    logic [FORMAT_BITWIDTH - 1 : 0] activationOut [ARRAY_HEIGHT - 1 : 0][ARRAY_LENGTH - 1 : 0];
+    // Intermediate PE Signals:
+    logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] accumulateOut           [ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
+    logic signed [FORMAT_BITWIDTH - 1 : 0]      weightOut               [ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
+    logic signed [FORMAT_BITWIDTH - 1 : 0]      activationOut           [ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
+    logic signed [FORMAT_BITWIDTH - 1 : 0]      intermediateWeightIn    [ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
+    logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] intermediateAccumulatorIn[ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
+    logic signed [FORMAT_BITWIDTH - 1 : 0]      intermediateActivationIn[ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
 
 
     assign MatrixMulOut = accumulateOut[ARRAY_HEIGHT - 1];
@@ -44,35 +43,30 @@ module MatrixMul #(
         for (i = 0; i < ARRAY_HEIGHT; i++) begin : gen_PE_Rows
             for (j = 0; j < ARRAY_LENGTH; j++) begin : gen_PE_Col
 
-                logic [FORMAT_BITWIDTH - 1 : 0] intermediateWeightIn;
-                logic [ACCUMULATOR_BITWIDTH - 1 : 0] intermediateAccumulatorIn;
-
                 if (i == 0) begin : gen_ifRow0
-                    assign intermediateWeightIn = weightInputRow[i];
-                    assign intermediateAccumulatorIn = '0;
+                    assign intermediateWeightIn[i][j]     = weightInputRow[j];
+                    assign intermediateAccumulatorIn[i][j] = '0;
                 end else begin : gen_ifRowNot0
-                    assign intermediateWeightIn =  weightOut[i - 1][j];
-                    assign intermediateAccumulatorIn = accumulateOut[i-1][j];
-
+                    assign intermediateWeightIn[i][j]     = weightOut[i-1][j];
+                    assign intermediateAccumulatorIn[i][j] = accumulateOut[i-1][j];
                 end
 
-                logic [FORMAT_BITWIDTH - 1 : 0] intermediateActivationIn;
+                if (j == 0)
+                    assign intermediateActivationIn[i][j] = activationInputCol[i];
+                else
+                    assign intermediateActivationIn[i][j] = activationOut[i][j-1];
 
-                if (j == 0) 
-                    assign intermediateActivationIn = activationInputCol[j];
-                else 
-                    assign intermediateActivationIn = activationOut[i][j - 1];
-                end 
-
-                ProcessingElement #(.FORMAT_BITWIDTH(FORMAT_BITWIDTH), .ACCUMULATOR_BITWIDTH(ACCUMULATOR_BITWIDTH) 
+                ProcessingElement #(.FORMAT_BITWIDTH(FORMAT_BITWIDTH), .ACCUMULATOR_BITWIDTH(ACCUMULATOR_BITWIDTH)
                     ) PE (
                         .loadWeight(loadingWeight_c), .clk(clk), .rst(rst),
-                        .weightIn(intermediateWeightIn), .activationIn(intermediateActivationIn),
-                        .accumlatorIn(intermediateAccumulatorIn),
+                        .weightIn(intermediateWeightIn[i][j]),
+                        .activationIn(intermediateActivationIn[i][j]),
+                        .accumlatorIn(intermediateAccumulatorIn[i][j]),
                         .weightOut(weightOut[i][j]), .activationOut(activationOut[i][j]),
                         .accumlatorOut(accumulateOut[i][j])
                     );
             end 
+        end   
          
     endgenerate 
 

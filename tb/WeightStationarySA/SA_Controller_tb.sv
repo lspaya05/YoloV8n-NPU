@@ -1,8 +1,8 @@
 `timescale 1ns/1ps
 
-module SA_Controller_tb;
-    localparam int ARRAY_HEIGHT = 4;
-    localparam int ARRAY_LENGTH = 5;
+module SA_Controller_tb();
+    localparam int ARRAY_HEIGHT = 16;
+    localparam int ARRAY_LENGTH = 16;
     localparam int K_DIM        = 4;
 
     localparam int EXPECT_LOAD_CYCLES  = ARRAY_HEIGHT;
@@ -199,7 +199,6 @@ module SA_Controller_tb;
             $fatal(1);
         end
 
-        $finish;
     end
 
     always @(posedge clk) begin

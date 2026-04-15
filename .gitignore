@@ -23,6 +23,20 @@
 /vivado/*.dmp
 /vivado/*.restore
 
+# ========================
+# IP Output Directory
+# ========================
+/ip/*/hdl/
+/ip/*/sim/
+/ip/*/synth/
+/ip/*/doc/
+/ip/*/*.veo
+/ip/*/*.vho
+/ip/*/*.dcp
+/ip/*/*.xml
+/ip/*/*.xdc
+/ip/*/*.mif
+
 # Optional: Ignore Vivado-generated project files if storing only sources
 #/vivado/*.xpr
 #/vivado/*.xpr.user
@@ -55,7 +69,7 @@
 # Simulation Outputs
 # ========================
 /scripts/sim/work
-/scripts/sim/waves/*.wlf
+/scripts/waves/*.wlf
 /scripts/sim/transcript
 /scripts/sim/modelsim/vsim.wlf
 /scripts/sim/modelsim.ini

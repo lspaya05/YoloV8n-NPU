@@ -1,0 +1,44 @@
+# do scripts/sim/runlab.do MatrixMul
+# C:/
+# -c
+# ** Warning: (vlib-34) Library already exists at "work".
+# Errors: 0, Warnings: 1
+# ** UI-Msg (Error): (vish-3296) Unknown option '-c_tb'.
+# Use the -help option for complete vsim usage.
+# ** Error: Error loading design
+# Error in macro ./scripts/sim/runlab.do line 35
+# Error loading design
+#     while executing
+# "error "Error loading design""
+#     (procedure "vsim" line 202)
+#     invoked from within
+# "vsim -voptargs="+acc" -t 1ps -lib work ${module}_tb"
+# 
+# C:/Users/Leona
+# -c
+# ** Warning: (vlib-34) Library already exists at "work".
+# Errors: 0, Warnings: 1
+# ** UI-Msg (Error): (vish-3296) Unknown option '-c_tb'.
+# Use the -help option for complete vsim usage.
+# ** Error: Error loading design
+# Error in macro ./scripts/sim/runlab.do line 35
+# Error loading design
+#     while executing
+# "error "Error loading design""
+#     (procedure "vsim" line 202)
+#     invoked from within
+# "vsim -voptargs="+acc" -t 1ps -lib work ${module}_tb"
+# C:/Users/Leona
+# -c
+# ** Warning: (vlib-34) Library already exists at "work".
+# Errors: 0, Warnings: 1
+# ** UI-Msg (Error): (vish-3296) Unknown option '-c_tb'.
+# Use the -help option for complete vsim usage.
+# ** Error: Error loading design
+# Error in macro ./scripts/sim/runlab.do line 35
+# Error loading design
+#     while executing
+# "error "Error loading design""
+#     (procedure "vsim" line 202)
+#     invoked from within
+# "vsim -voptargs="+acc" -t 1ps -lib work ${module}_tb"
