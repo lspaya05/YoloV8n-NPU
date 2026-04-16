@@ -19,33 +19,33 @@ module RegisterChain # (
     output logic [BIT_WIDTH - 1 : 0] out
 );
 
-    // BUG FIX: dimensions were swapped — each slot must be BIT_WIDTH wide,
-    // and there are CHAIN_LENGTH slots (one per FF stage).
-    logic [BIT_WIDTH - 1 : 0] intermediateFFOut [CHAIN_LENGTH];
-
     genvar i;
     generate
-        for (i = 0; i < CHAIN_LENGTH; i++) begin : gen_FFChain
-            if (i == 0 && CHAIN_LENGTH == 1) begin : gen_single
-                D_FF #(.BIT_WIDTH(BIT_WIDTH)) singleFF (
-                    .clk(clk), .rst(rst), .in(in), .out(out)
-                );
+        if (CHAIN_LENGTH == 0) begin : gen_passthrough
+            assign out = in;
 
-            end else if (i == 0) begin : gen_first
-                D_FF #(.BIT_WIDTH(BIT_WIDTH)) firstFF (
-                    .clk(clk), .rst(rst), .in(in), .out(intermediateFFOut[i])
-                );
+        end else if (CHAIN_LENGTH == 1) begin : gen_single
+            D_FF #(.BIT_WIDTH(BIT_WIDTH)) singleFF (
+                .clk(clk), .rst(rst), .in(in), .out(out)
+            );
 
-            end else if (i == CHAIN_LENGTH - 1) begin : gen_last
-                D_FF #(.BIT_WIDTH(BIT_WIDTH)) lastFF (
-                    .clk(clk), .rst(rst), .in(intermediateFFOut[i - 1]), .out(out)
-                );
+        end else begin : gen_chain
+            logic [BIT_WIDTH - 1 : 0] intermediateFFOut [CHAIN_LENGTH - 1];
 
-            end else begin : gen_middle
-                D_FF #(.BIT_WIDTH(BIT_WIDTH)) intermediateFF (
-                    .clk(clk), .rst(rst), .in(intermediateFFOut[i - 1]), .out(intermediateFFOut[i])
-                );
-                
+            for (i = 0; i < CHAIN_LENGTH; i++) begin : gen_FFChain
+                if (i == 0) begin : gen_first
+                    D_FF #(.BIT_WIDTH(BIT_WIDTH)) firstFF (
+                        .clk(clk), .rst(rst), .in(in), .out(intermediateFFOut[i])
+                    );
+                end else if (i == CHAIN_LENGTH - 1) begin : gen_last
+                    D_FF #(.BIT_WIDTH(BIT_WIDTH)) lastFF (
+                        .clk(clk), .rst(rst), .in(intermediateFFOut[i - 1]), .out(out)
+                    );
+                end else begin : gen_middle
+                    D_FF #(.BIT_WIDTH(BIT_WIDTH)) intermediateFF (
+                        .clk(clk), .rst(rst), .in(intermediateFFOut[i - 1]), .out(intermediateFFOut[i])
+                    );
+                end
             end
         end
     endgenerate

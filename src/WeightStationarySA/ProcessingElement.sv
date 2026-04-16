@@ -26,7 +26,7 @@ module ProcessingElement #(
     output logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] accumlatorOut
 );
     // Multiply Output:
-    parameter int MUL_OUT_BITWIDTH = 2 * FORMAT_BITWIDTH;
+    localparam int MUL_OUT_BITWIDTH = 2 * FORMAT_BITWIDTH;
 
     //Logic variables for held weight and result
     logic signed [FORMAT_BITWIDTH - 1 : 0] weight;

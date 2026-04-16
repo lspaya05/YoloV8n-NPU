@@ -1,30 +1,29 @@
-# MatrixMul_wave.do
-# Sourced by scripts/sim/runlab.do after vsim launches.
-
-add wave -divider "Clock / Reset"
-add wave -radix binary /MatrixMul_tb/clk
-add wave -radix binary /MatrixMul_tb/rst
-
-add wave -divider "Phase Controls"
-add wave -radix binary /MatrixMul_tb/feed_w
-add wave -radix binary /MatrixMul_tb/feed_a
-add wave -radix binary /MatrixMul_tb/loadingWeight_c
-add wave -radix binary /MatrixMul_tb/capture_en
-
-add wave -divider "Weight Input Row"
-add wave -radix decimal /MatrixMul_tb/weightInputRow
-
-add wave -divider "Activation Input Col"
-add wave -radix decimal /MatrixMul_tb/activationInputCol
-
-add wave -divider "MatrixMul Output"
-add wave -radix decimal /MatrixMul_tb/MatrixMulOut
-
-add wave -divider "Captured Result"
-add wave -radix decimal /MatrixMul_tb/result
-
-configure wave -namecolwidth   220
-configure wave -valuecolwidth  120
-configure wave -timelineunits  ns
+onerror {resume}
+quietly WaveActivateNextPane {} 0
+add wave -noupdate /MatrixMul_tb/dut/clk
+add wave -noupdate /MatrixMul_tb/dut/rst
+add wave -noupdate /MatrixMul_tb/dut/loadingWeight_c
+add wave -noupdate /MatrixMul_tb/dut/weightInputRow
+add wave -noupdate /MatrixMul_tb/dut/activationInputCol
+add wave -noupdate /MatrixMul_tb/dut/MatrixMulOut
+add wave -noupdate /MatrixMul_tb/dut/accumulateOut
+add wave -noupdate /MatrixMul_tb/dut/weightOut
+add wave -noupdate /MatrixMul_tb/dut/activationOut
 TreeUpdate [SetDefaultTree]
-WaveRestoreZoom {0 ns} {1 us}
+WaveRestoreCursors {{Cursor 1} {144 ps} 0}
+quietly wave cursor active 1
+configure wave -namecolwidth 150
+configure wave -valuecolwidth 100
+configure wave -justifyvalue left
+configure wave -signalnamewidth 1
+configure wave -snapdistance 10
+configure wave -datasetprefix 0
+configure wave -rowmargin 4
+configure wave -childrowmargin 2
+configure wave -gridoffset 0
+configure wave -gridperiod 1
+configure wave -griddelta 40
+configure wave -timeline 0
+configure wave -timelineunits ns
+update
+WaveRestoreZoom {0 ps} {717 ps}

@@ -28,31 +28,41 @@ module MatrixMul #(
     output logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] MatrixMulOut [ARRAY_LENGTH - 1 : 0]
 );
     // Intermediate PE Signals:
-    logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] accumulateOut           [ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
-    logic signed [FORMAT_BITWIDTH - 1 : 0]      weightOut               [ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
-    logic signed [FORMAT_BITWIDTH - 1 : 0]      activationOut           [ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
-    logic signed [FORMAT_BITWIDTH - 1 : 0]      intermediateWeightIn    [ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
+    logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] accumulateOut [ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
+    logic signed [FORMAT_BITWIDTH - 1 : 0] weightOut [ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
+    logic signed [FORMAT_BITWIDTH - 1 : 0] activationOut [ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
+    logic signed [FORMAT_BITWIDTH - 1 : 0] intermediateWeightIn [ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
     logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] intermediateAccumulatorIn[ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
-    logic signed [FORMAT_BITWIDTH - 1 : 0]      intermediateActivationIn[ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
+    logic signed [FORMAT_BITWIDTH - 1 : 0] intermediateActivationIn[ARRAY_HEIGHT-1:0][ARRAY_LENGTH-1:0];
 
+    logic signed [FORMAT_BITWIDTH - 1 : 0] delayedActivation [ARRAY_HEIGHT - 1 : 0];
+
+    genvar k;
+    generate
+        for (k = 0; k < ARRAY_HEIGHT; k++) begin : gen_rowRegChains
+            RegisterChain #(.BIT_WIDTH(FORMAT_BITWIDTH), .CHAIN_LENGTH(k)) seriesReg (
+                .clk(clk), .rst(rst), .in(activationInputCol[k]), .out(delayedActivation[k])
+            );
+        end 
+    endgenerate
 
     assign MatrixMulOut = accumulateOut[ARRAY_HEIGHT - 1];
-
+    
     genvar i, j;
     generate
         for (i = 0; i < ARRAY_HEIGHT; i++) begin : gen_PE_Rows
             for (j = 0; j < ARRAY_LENGTH; j++) begin : gen_PE_Col
 
                 if (i == 0) begin : gen_ifRow0
-                    assign intermediateWeightIn[i][j]     = weightInputRow[j];
+                    assign intermediateWeightIn[i][j] = weightInputRow[j];
                     assign intermediateAccumulatorIn[i][j] = '0;
                 end else begin : gen_ifRowNot0
-                    assign intermediateWeightIn[i][j]     = weightOut[i-1][j];
+                    assign intermediateWeightIn[i][j] = weightOut[i-1][j];
                     assign intermediateAccumulatorIn[i][j] = accumulateOut[i-1][j];
                 end
 
                 if (j == 0)
-                    assign intermediateActivationIn[i][j] = activationInputCol[i];
+                    assign intermediateActivationIn[i][j] = delayedActivation[i];
                 else
                     assign intermediateActivationIn[i][j] = activationOut[i][j-1];
 
