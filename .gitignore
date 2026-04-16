@@ -98,3 +98,5 @@ Thumbs.db
 # Claude
 # ========================
 .claude/settings.local.json
+/transcript
+/work/
