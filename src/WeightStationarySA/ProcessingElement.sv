@@ -15,6 +15,8 @@
 //     - weightOut: Forwarded weight to the next PE
 //     - activationOut: Forwarded activation to the next PE
 //     - accumlatorOut: ACCUMULATOR_BITWIDTH-bit signed accumulated MAC result
+
+
 module ProcessingElement #(
     parameter int FORMAT_BITWIDTH = 8,
     parameter int ACCUMULATOR_BITWIDTH = 32 
