@@ -1,0 +1,61 @@
+
+<style>
+.sec{font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;padding:6px 0 4px;color:var(--color-text-secondary)}
+.lr{display:grid;grid-template-columns:28px 1fr 140px 90px;align-items:center;gap:0 8px;padding:4px 0;border-bottom:.5px solid var(--color-border-tertiary);font-size:12px}
+.ln{font-weight:500;color:var(--color-text-secondary);font-size:11px}
+.op{color:var(--color-text-primary)}
+.sh{font-size:11px;color:var(--color-text-tertiary);font-family:var(--font-mono)}
+.badge{font-size:10px;font-weight:500;padding:2px 7px;border-radius:20px;text-align:center;white-space:nowrap}
+.bf{background:#FAECE7;color:#993C1D}
+.bt{background:#E1F5EE;color:#0F6E56}
+.ba{background:#FAEEDA;color:#854F0B}
+.bd{background:#E6F1FB;color:#185FA5}
+.grp{margin-bottom:12px}
+.grph{padding:6px 10px;border-radius:6px;font-size:12px;font-weight:500;margin-bottom:4px}
+.gpurple{background:#EEEDFE;color:#3C3489}
+.ggreen{background:#E1F5EE;color:#085041}
+.gamber{background:#FAEEDA;color:#633806}
+</style>
+<div style="padding:8px 0">
+<div class="grp">
+<div class="grph gpurple">Backbone — layers 0–9 — all FPGA (Systolic + VPU)</div>
+<div class="lr" style="font-weight:500;font-size:11px;color:var(--color-text-secondary);border-bottom:.5px solid var(--color-border-secondary)"><span>#</span><span>Operation</span><span>Output shape</span><span>Unit</span></div>
+<div class="lr"><span class="ln">0</span><span class="op">Conv 3×3 s2 — 3→16</span><span class="sh">320×320×16</span><span><span class="badge bf">Systolic</span></span></div>
+<div class="lr"><span class="ln">1</span><span class="op">Conv 3×3 s2 — 16→32</span><span class="sh">160×160×32</span><span><span class="badge bf">Systolic</span></span></div>
+<div class="lr"><span class="ln">2</span><span class="op">C2f n=1 — 32→32</span><span class="sh">160×160×32</span><span><span class="badge bf">Systolic</span></span></div>
+<div class="lr"><span class="ln">3</span><span class="op">Conv 3×3 s2 — 32→64</span><span class="sh">80×80×64</span><span><span class="badge bf">Systolic</span></span></div>
+<div class="lr"><span class="ln">4</span><span class="op">C2f n=2 — 64→64</span><span class="sh">80×80×64</span><span><span class="badge bf">Systolic</span></span></div>
+<div class="lr"><span class="ln">5</span><span class="op">Conv 3×3 s2 — 64→128</span><span class="sh">40×40×128</span><span><span class="badge bf">Systolic</span></span></div>
+<div class="lr"><span class="ln">6</span><span class="op">C2f n=2 — 128→128</span><span class="sh">40×40×128</span><span><span class="badge bf">Systolic</span></span></div>
+<div class="lr"><span class="ln">7</span><span class="op">Conv 3×3 s2 — 128→256</span><span class="sh">20×20×256</span><span><span class="badge bf">Systolic</span></span></div>
+<div class="lr"><span class="ln">8</span><span class="op">C2f n=1 — 256→256</span><span class="sh">20×20×256</span><span><span class="badge bf">Systolic</span></span></div>
+<div class="lr"><span class="ln">9</span><span class="op">SPPF — 3× MaxPool 5×5</span><span class="sh">20×20×256</span><span><span class="badge bt">VPU</span></span></div>
+</div>
+
+<div class="grp">
+<div class="grph ggreen">Neck (FPN + PAN) — layers 10–21 — all FPGA</div>
+<div class="lr"><span class="ln">10</span><span class="op">Upsample 2×</span><span class="sh">40×40×256</span><span><span class="badge bd">DMA</span></span></div>
+<div class="lr"><span class="ln">11</span><span class="op">Concat ← L6 skip</span><span class="sh">40×40×384</span><span><span class="badge bd">DMA</span></span></div>
+<div class="lr"><span class="ln">12</span><span class="op">C2f n=1 — 384→128</span><span class="sh">40×40×128</span><span><span class="badge bf">Systolic</span></span></div>
+<div class="lr"><span class="ln">13</span><span class="op">Upsample 2×</span><span class="sh">80×80×128</span><span><span class="badge bd">DMA</span></span></div>
+<div class="lr"><span class="ln">14</span><span class="op">Concat ← L4 skip</span><span class="sh">80×80×192</span><span><span class="badge bd">DMA</span></span></div>
+<div class="lr"><span class="ln">15</span><span class="op">C2f n=1 — 192→64 (P3 out)</span><span class="sh">80×80×64</span><span><span class="badge bf">Systolic</span></span></div>
+<div class="lr"><span class="ln">16</span><span class="op">Conv 3×3 s2 — 64→64</span><span class="sh">40×40×64</span><span><span class="badge bf">Systolic</span></span></div>
+<div class="lr"><span class="ln">17</span><span class="op">Concat ← L12 skip</span><span class="sh">40×40×192</span><span><span class="badge bd">DMA</span></span></div>
+<div class="lr"><span class="ln">18</span><span class="op">C2f n=1 — 192→128 (P4 out)</span><span class="sh">40×40×128</span><span><span class="badge bf">Systolic</span></span></div>
+<div class="lr"><span class="ln">19</span><span class="op">Conv 3×3 s2 — 128→128</span><span class="sh">20×20×128</span><span><span class="badge bf">Systolic</span></span></div>
+<div class="lr"><span class="ln">20</span><span class="op">Concat ← L9 skip</span><span class="sh">20×20×384</span><span><span class="badge bd">DMA</span></span></div>
+<div class="lr"><span class="ln">21</span><span class="op">C2f n=1 — 384→256 (P5 out)</span><span class="sh">20×20×256</span><span><span class="badge bf">Systolic</span></span></div>
+</div>
+
+<div class="grp">
+<div class="grph gamber">Detect head — layer 22 — ARM only</div>
+<div class="lr"><span class="ln">22</span><span class="op">Detect [L15, L18, L21] — DFL + NMS</span><span class="sh">bbox + cls</span><span><span class="badge ba">ARM</span></span></div>
+</div>
+
+<div style="font-size:11px;color:var(--color-text-secondary);padding-top:4px">
+C2f = 2× Conv 3×3 + residual concat, each Conv is (Conv+BN+SiLU) fused offline via model.fuse(). 
+BN is folded into Conv weights before programming — no BN hardware unit needed.
+~95% of FLOPs run on FPGA.
+</div>
+</div>

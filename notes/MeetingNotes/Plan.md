@@ -25,6 +25,8 @@ Need to figure out:
 6. PJRT - What is it Review, understand.
 
 ## Notes 4/19/2026
-Need to complete by 4/23:
-Bernardo: Reading VPU(Relu, Gelu, LN), Defining the microarchitecture and also deciding the input/output bits, design for controllers and datapath..etc.
+Need to complete by 4/23: \
+
+Bernardo: Reading VPU(Relu, Gelu, LN), Defining the microarchitecture and also deciding the input/output bits, design for controllers and datapath..etc. \
+ 
 Leonard: Drawing the microarchitecture for the General NPU architecture and making sure the overall flow that we have right now is sufficient to run Yolov8
