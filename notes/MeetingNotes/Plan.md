@@ -24,4 +24,7 @@ Need to figure out:
 5. MNIST - does the components we have planned for match that? 
 6. PJRT - What is it Review, understand.
 
-## Task for individuals
+## Notes 4/19/2026
+Need to complete by 4/23:
+Bernardo: Reading VPU(Relu, Gelu, LN), Defining the microarchitecture and also deciding the input/output bits, design for controllers and datapath..etc.
+Leonard: Drawing the microarchitecture for the General NPU architecture and making sure the overall flow that we have right now is sufficient to run Yolov8
