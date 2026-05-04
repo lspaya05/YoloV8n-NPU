@@ -1,0 +1,221 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#f1f5f9;padding:20px;font-family:'Inter',sans-serif}
+.wrap{background:#fff;border-radius:14px;padding:20px;box-shadow:0 1px 4px #00000012,0 4px 24px #0000000a}
+.hdr{display:flex;align-items:center;gap:10px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #e2e8f0}
+.hdr h1{font-size:13px;font-weight:600;color:#0f172a;letter-spacing:.02em}
+.hdr .sep{flex:1}
+.hdr .chip{font-family:'JetBrains Mono',monospace;font-size:10px;color:#94a3b8;background:#f8fafc;padding:3px 8px;border-radius:20px;border:1px solid #e2e8f0}
+.leg{display:flex;flex-wrap:wrap;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid #e2e8f0}
+.li{display:flex;align-items:center;gap:7px}
+.ls{width:24px;height:2.5px;border-radius:2px}
+.lt{font-size:11px;color:#64748b}
+</style>
+
+<div class="wrap">
+<div class="hdr">
+  <h1>NPU Architecture — YOLOv8n Inference</h1>
+  <div class="sep"></div>
+  <div class="chip">Kria KR260 · INT8 · 300 MHz</div>
+</div>
+
+<svg viewBox="0 0 820 528" width="100%" xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:visible">
+<defs>
+  <marker id="mb" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 2L8 5L1 8" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+  <marker id="mp" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 2L8 5L1 8" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+  <marker id="mg" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 2L8 5L1 8" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+  <marker id="ms" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 2L8 5L1 8" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs>
+
+<!-- ─── ARM COLUMN ─── -->
+<rect x="4" y="20" width="134" height="500" rx="10" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="71" y="37" text-anchor="middle" font-family="Inter" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing=".06em">ARM PS · A53</text>
+
+<!-- ARM blocks -->
+<rect x="14" y="44" width="114" height="68" rx="7" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="71" y="63" text-anchor="middle" font-family="Inter" font-size="11.5" font-weight="500" fill="#1e293b">Preprocess</text>
+<text x="71" y="79" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">letterbox · norm</text>
+<text x="71" y="92" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">INT8 quantize</text>
+
+<rect x="14" y="122" width="114" height="68" rx="7" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="71" y="141" text-anchor="middle" font-family="Inter" font-size="11.5" font-weight="500" fill="#1e293b">Upsample ×2</text>
+<text x="71" y="157" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">bilinear · NEON</text>
+<text x="71" y="170" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">PAN-FPN neck</text>
+
+<rect x="14" y="200" width="114" height="68" rx="7" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="71" y="219" text-anchor="middle" font-family="Inter" font-size="11.5" font-weight="500" fill="#1e293b">Concat / Split</text>
+<text x="71" y="235" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">FPN merge</text>
+<text x="71" y="248" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">torch.chunk</text>
+
+<rect x="14" y="278" width="114" height="68" rx="7" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="71" y="297" text-anchor="middle" font-family="Inter" font-size="11.5" font-weight="500" fill="#1e293b">Class sigmoid</text>
+<text x="71" y="313" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">80 classes</text>
+<text x="71" y="326" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">NEON · fp32</text>
+
+<rect x="14" y="356" width="114" height="68" rx="7" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="71" y="375" text-anchor="middle" font-family="Inter" font-size="11.5" font-weight="500" fill="#1e293b">NMS + decode</text>
+<text x="71" y="391" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">IoU filter</text>
+<text x="71" y="404" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">xyxy coords</text>
+
+<!-- ─── DMA CONNECTOR ─── -->
+<line x1="145" y1="38" x2="145" y2="488" stroke="#93c5fd" stroke-width="1.5" stroke-dasharray="5,3"/>
+<polygon points="145,40 141,50 149,50" fill="#93c5fd"/>
+<polygon points="145,486 141,476 149,476" fill="#93c5fd"/>
+<rect x="119" y="252" width="52" height="15" rx="3" fill="#fff" stroke="#e0f0ff" stroke-width=".5"/>
+<text transform="rotate(-90 145 260)" x="145" y="260" text-anchor="middle" font-family="JetBrains Mono" font-size="8.5" fill="#3b82f6" letter-spacing=".05em">2D STRIDED DMA</text>
+
+<!-- ─── NPU CONTAINER ─── -->
+<rect x="154" y="14" width="660" height="506" rx="12" fill="#fafbff" stroke="#c7d2fe" stroke-width="1.2"/>
+<text x="484" y="30" text-anchor="middle" font-family="Inter" font-size="10" font-weight="600" fill="#6366f1" letter-spacing=".06em">NPU · PL</text>
+
+<!-- ─── SRAM HUB LABEL ─── -->
+<text x="248" y="48" text-anchor="middle" font-family="Inter" font-size="10" font-weight="600" fill="#475569" letter-spacing=".05em">SRAM HUB</text>
+
+<!-- ─── MEMORY BANKS ─── -->
+
+<!-- Act Bank -->
+<rect x="164" y="54" width="158" height="62" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.2" stroke-dasharray="6,3"/>
+<text x="243" y="73" text-anchor="middle" font-family="Inter" font-size="11.5" font-weight="500" fill="#1e40af">Act Bank A/B</text>
+<text x="243" y="88" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#3b82f6">ping-pong · INT8</text>
+<text x="243" y="107" text-anchor="middle" font-family="JetBrains Mono" font-size="8.5" fill="#93c5fd">→ SA act input</text>
+
+<!-- Weight Bank -->
+<rect x="164" y="126" width="158" height="62" rx="8" fill="#f0f9ff" stroke="#7dd3fc" stroke-width="1.2" stroke-dasharray="6,3"/>
+<text x="243" y="145" text-anchor="middle" font-family="Inter" font-size="11.5" font-weight="500" fill="#0c4a6e">Weight Bank A/B</text>
+<text x="243" y="160" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#0284c7">ping-pong · INT8</text>
+<text x="243" y="179" text-anchor="middle" font-family="JetBrains Mono" font-size="8.5" fill="#7dd3fc">→ SA weight input</text>
+
+<!-- Gap -->
+<rect x="164" y="198" width="158" height="168" rx="8" fill="none" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4,5"/>
+<text x="243" y="278" text-anchor="middle" font-family="Inter" font-size="9" fill="#cbd5e1">internal pipeline</text>
+<text x="243" y="294" text-anchor="middle" font-family="Inter" font-size="9" fill="#cbd5e1">no SRAM port</text>
+
+<!-- Residual Bank -->
+<rect x="164" y="376" width="158" height="62" rx="8" fill="#faf5ff" stroke="#c4b5fd" stroke-width="1.2" stroke-dasharray="6,3"/>
+<text x="243" y="395" text-anchor="middle" font-family="Inter" font-size="11.5" font-weight="500" fill="#6b21a8">Residual Bank</text>
+<text x="243" y="410" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#7c3aed">C2f skip · INT8</text>
+<text x="243" y="429" text-anchor="middle" font-family="JetBrains Mono" font-size="8.5" fill="#c4b5fd">→ VPU eltwise ② only</text>
+
+<!-- Output Bank -->
+<rect x="164" y="450" width="158" height="56" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1.2" stroke-dasharray="6,3"/>
+<text x="243" y="469" text-anchor="middle" font-family="Inter" font-size="11.5" font-weight="500" fill="#14532d">Output Bank</text>
+<text x="243" y="484" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#16a34a">written by VPU · INT8</text>
+<text x="243" y="498" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#86efac">→ next layer Act Bank</text>
+
+<!-- ─── COMPUTE BLOCKS ─── -->
+
+<!-- Systolic Array -->
+<rect x="346" y="54" width="218" height="120" rx="9" fill="#dbeafe" stroke="#60a5fa" stroke-width="1.2"/>
+<text x="455" y="106" text-anchor="middle" font-family="Inter" font-size="13" font-weight="600" fill="#1e3a8a">Systolic Array 16×16</text>
+<text x="455" y="124" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#3b82f6">INT8 × INT8 → INT32</text>
+<text x="455" y="140" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#60a5fa">weight-stationary · 256 MACs/cyc</text>
+<rect x="494" y="60" width="62" height="17" rx="4" fill="#3b82f6"/>
+<text x="525" y="72" text-anchor="middle" font-family="Inter" font-size="9" font-weight="500" fill="#fff">256 MACs/cyc</text>
+
+<!-- PSB -->
+<rect x="346" y="186" width="218" height="44" rx="8" fill="#e0f2fe" stroke="#38bdf8" stroke-width="1.2"/>
+<text x="455" y="208" text-anchor="middle" font-family="Inter" font-size="12" font-weight="500" fill="#0c4a6e">PSB — Partial Sum Buffer</text>
+<text x="455" y="223" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#0284c7">INT32 · accumulates K-tiles</text>
+
+<!-- Requant -->
+<rect x="346" y="242" width="218" height="68" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.2"/>
+<text x="455" y="264" text-anchor="middle" font-family="Inter" font-size="12" font-weight="500" fill="#4c1d95">Requant Pipeline</text>
+<text x="455" y="279" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#7c3aed">INT32 · ×M · >>S · clip → INT8</text>
+<rect x="356" y="289" width="142" height="16" rx="4" fill="#fff" stroke="#c4b5fd" stroke-width="1" stroke-dasharray="3,2"/>
+<text x="427" y="300" text-anchor="middle" font-family="JetBrains Mono" font-size="8.5" fill="#7c3aed">coeff buffer: C×(M,S) · BRAM</text>
+<rect x="508" y="250" width="48" height="15" rx="4" fill="#7c3aed"/>
+<text x="532" y="261" text-anchor="middle" font-family="Inter" font-size="8.5" font-weight="500" fill="#fff">per-ch</text>
+
+<!-- VPU container -->
+<rect x="340" y="324" width="230" height="186" rx="10" fill="#f0fdf4" stroke="#4ade80" stroke-width="1.3"/>
+<text x="358" y="340" font-family="Inter" font-size="10" font-weight="600" fill="#15803d" letter-spacing=".05em">64-LANE VPU</text>
+<line x1="440" y1="337" x2="560" y2="337" stroke="#bbf7d0" stroke-width="1"/>
+<text x="562" y="340" font-family="JetBrains Mono" font-size="8.5" fill="#86efac">INT8 pipeline</text>
+
+<!-- LUT stage -->
+<rect x="352" y="346" width="206" height="46" rx="7" fill="#dcfce7" stroke="#4ade80" stroke-width="1"/>
+<text x="363" y="362" font-family="Inter" font-size="11" font-weight="500" fill="#14532d">① Act LUT</text>
+<text x="455" y="376" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#16a34a">INT8 → SiLU(x) · 1 cycle · reprogrammable</text>
+<rect x="352" y="384" width="118" height="13" rx="3" fill="#fff" stroke="#4ade80" stroke-width=".8" stroke-dasharray="3,2"/>
+<text x="411" y="393" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#16a34a">256×8-bit BRAM</text>
+<text x="478" y="393" font-family="JetBrains Mono" font-size="8" fill="#86efac">LUT_BYPASS mux</text>
+
+<!-- Eltwise stage -->
+<rect x="352" y="402" width="206" height="46" rx="7" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+<text x="363" y="418" font-family="Inter" font-size="11" font-weight="500" fill="#166534">② Eltwise + MaxPool</text>
+<text x="455" y="432" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#4ade80">sat. add · clip[−128,127] · SPPF 5×5</text>
+<text x="455" y="444" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#86efac">← residual bank feeds here</text>
+
+<!-- HREDUCE stage -->
+<rect x="352" y="454" width="206" height="46" rx="7" fill="#fefce8" stroke="#fde047" stroke-width="1"/>
+<text x="363" y="470" font-family="Inter" font-size="11" font-weight="500" fill="#713f12">③ HREDUCE</text>
+<text x="455" y="484" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#ca8a04">4-stage tree · DFL softmax · conditional</text>
+<text x="455" y="496" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#fde047">passthrough on all conv layers</text>
+
+<!-- ─── DATA TYPE ZONE MARKERS ─── -->
+<line x1="580" y1="58" x2="584" y2="58" stroke="#94a3b8" stroke-width="1"/>
+<line x1="584" y1="58" x2="584" y2="228" stroke="#94a3b8" stroke-width=".8" stroke-dasharray="3,4"/>
+<line x1="580" y1="228" x2="584" y2="228" stroke="#94a3b8" stroke-width="1"/>
+<text x="591" y="145" font-family="JetBrains Mono" font-size="8.5" fill="#94a3b8">INT32</text>
+
+<line x1="580" y1="244" x2="584" y2="244" stroke="#4ade80" stroke-width="1"/>
+<line x1="584" y1="244" x2="584" y2="500" stroke="#4ade80" stroke-width=".8" stroke-dasharray="3,4" opacity=".5"/>
+<line x1="580" y1="500" x2="584" y2="500" stroke="#4ade80" stroke-width="1" opacity=".5"/>
+<text x="591" y="374" font-family="JetBrains Mono" font-size="8.5" fill="#4ade80" opacity=".8">INT8</text>
+
+<!-- ─── ARROWS ─── -->
+
+<!-- Act Bank → SA -->
+<line x1="322" y1="79" x2="346" y2="79" stroke="#3b82f6" stroke-width="2" marker-end="url(#mb)"/>
+<rect x="324" y="67" width="22" height="13" rx="3" fill="#fff" stroke="#e0f0ff" stroke-width=".5"/>
+<text x="335" y="77" text-anchor="middle" font-family="JetBrains Mono" font-size="8.5" fill="#3b82f6">acts</text>
+
+<!-- Weight Bank → SA -->
+<line x1="322" y1="152" x2="346" y2="152" stroke="#0284c7" stroke-width="2" marker-end="url(#mb)" opacity=".6"/>
+<rect x="323" y="140" width="22" height="13" rx="3" fill="#fff" stroke="#e0f0ff" stroke-width=".5"/>
+<text x="334" y="150" text-anchor="middle" font-family="JetBrains Mono" font-size="8.5" fill="#0284c7">wts</text>
+
+<!-- SA → PSB -->
+<line x1="455" y1="174" x2="455" y2="186" stroke="#94a3b8" stroke-width="1.8" marker-end="url(#ms)"/>
+<rect x="460" y="177" width="32" height="12" rx="3" fill="#fff" stroke="#f1f5f9" stroke-width=".5"/>
+<text x="476" y="186" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#94a3b8">INT32</text>
+
+<!-- PSB → Requant -->
+<line x1="455" y1="230" x2="455" y2="242" stroke="#94a3b8" stroke-width="1.8" marker-end="url(#ms)"/>
+<rect x="460" y="233" width="32" height="12" rx="3" fill="#fff" stroke="#f1f5f9" stroke-width=".5"/>
+<text x="476" y="242" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#94a3b8">INT32</text>
+
+<!-- Requant → VPU LUT (INT8 boundary) -->
+<line x1="455" y1="310" x2="455" y2="346" stroke="#16a34a" stroke-width="2" marker-end="url(#mg)"/>
+<rect x="460" y="323" width="26" height="13" rx="3" fill="#fff" stroke="#bbf7d0" stroke-width=".5"/>
+<text x="473" y="332" text-anchor="middle" font-family="JetBrains Mono" font-size="8.5" fill="#16a34a">INT8</text>
+
+<!-- LUT → Eltwise (internal) -->
+<line x1="455" y1="392" x2="455" y2="402" stroke="#4ade80" stroke-width="1.5" marker-end="url(#mg)" opacity=".7"/>
+
+<!-- Eltwise → HREDUCE (internal) -->
+<line x1="455" y1="448" x2="455" y2="454" stroke="#4ade80" stroke-width="1.5" marker-end="url(#mg)" opacity=".7"/>
+
+<!-- Residual Bank → Eltwise (L-path: right then down) -->
+<path d="M 322 407 L 334 407 L 334 424 L 352 424" fill="none" stroke="#7c3aed" stroke-width="2" marker-end="url(#mp)"/>
+<rect x="316" y="395" width="28" height="13" rx="3" fill="#fff" stroke="#ede9fe" stroke-width=".5"/>
+<text x="330" y="404" text-anchor="middle" font-family="JetBrains Mono" font-size="8.5" fill="#7c3aed">skip</text>
+
+<!-- VPU → Output Bank (L-path: down then left then up) -->
+<path d="M 455 510 L 455 522 L 243 522 L 243 506" fill="none" stroke="#16a34a" stroke-width="2" marker-end="url(#mg)"/>
+<rect x="316" y="523" width="72" height="13" rx="3" fill="#fff" stroke="#bbf7d0" stroke-width=".5"/>
+<text x="352" y="532" text-anchor="middle" font-family="JetBrains Mono" font-size="8.5" fill="#16a34a">write-back</text>
+
+</svg>
+
+<div class="leg">
+  <div class="li"><div class="ls" style="background:#3b82f6"></div><span class="lt">Act / Weight → SA</span></div>
+  <div class="li"><div class="ls" style="background:#7c3aed"></div><span class="lt">Residual → Eltwise ②</span></div>
+  <div class="li"><div class="ls" style="background:#16a34a"></div><span class="lt">VPU write-back → Output Bank</span></div>
+  <div class="li"><div class="ls" style="background:#94a3b8"></div><span class="lt">INT32 internal flow</span></div>
+  <div class="li"><div class="ls" style="background:#4ade80"></div><span class="lt">INT8 pipeline</span></div>
+  <div class="li"><div class="ls" style="background:#93c5fd;border-top:1.5px dashed #93c5fd"></div><span class="lt">2D Strided DMA</span></div>
+</div>
+</div>

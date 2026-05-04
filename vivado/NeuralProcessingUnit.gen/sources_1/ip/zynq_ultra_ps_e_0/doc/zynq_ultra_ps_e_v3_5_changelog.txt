@@ -1,0 +1,412 @@
+2025.2:
+ * Version 3.5 (Rev. 8)
+ * General: Bug fixes.
+ * Revision change in one or more subcores
+
+2025.1.1:
+ * Version 3.5 (Rev. 7)
+ * No changes
+
+2025.1:
+ * Version 3.5 (Rev. 7)
+ * General: Updated IP Catalog taxonomy structure. This change has no impact to the IP.
+ * General: Removed ports "emio_enet0,1,2,3_speed_mode" from GMII_GEM0, 1, 2, 3 interfaces' definition. The ports are available outside the interface definition.
+ * General: Updated IP to support PCIE_HIGH1 and PCIE_HIGH2 address range for external masters.
+ * General: Known Issue - LPDDR4 operating at <1600MTs with Speed Bin >1600MTs violate minimum clock frequency during calibration.
+ * Revision change in one or more subcores
+
+2024.2.2:
+ * Version 3.5 (Rev. 6)
+ * No changes
+
+2024.2.1:
+ * Version 3.5 (Rev. 6)
+ * Revision change in one or more subcores
+
+2024.2:
+ * Version 3.5 (Rev. 5)
+ * Revision change in one or more subcores
+
+2024.1.2:
+ * Version 3.5 (Rev. 4)
+ * No changes
+
+2024.1.1:
+ * Version 3.5 (Rev. 4)
+ * Revision change in one or more subcores
+
+2024.1:
+ * Version 3.5 (Rev. 3)
+ * General: IP packaging adjustments to address warnings from IP Packager integrity check
+ * Revision change in one or more subcores
+
+2023.2.2:
+ * Version 3.5 (Rev. 2)
+ * No changes
+
+2023.2.1:
+ * Version 3.5 (Rev. 2)
+ * Revision change in one or more subcores
+
+2023.2:
+ * Version 3.5 (Rev. 1)
+ * Feature Enhancement: Rebrand to AMD copyright information
+ * Revision change in one or more subcores
+
+2023.1.2:
+ * Version 3.5
+ * No changes
+
+2023.1.1:
+ * Version 3.5
+ * No changes
+
+2023.1:
+ * Version 3.5
+ * Bug Fix: IPI to PL interrupt channels (7, 8, 9, 10) are swapped internally with 10, 9, 8, 7 respectively.
+ * Bug Fix: Disabled unused PS DDR VREF generator - DXREFIEN
+ * Bug Fix: Minor Version Change from 3.4 to 3.5
+ * Revision change in one or more subcores
+
+2022.2.2:
+ * Version 3.4 (Rev. 1)
+ * No changes
+
+2022.2.1:
+ * Version 3.4 (Rev. 1)
+ * No changes
+
+2022.2:
+ * Version 3.4 (Rev. 1)
+ * Revision change in one or more subcores
+
+2022.1.2:
+ * Version 3.4
+ * No changes
+
+2022.1.1:
+ * Version 3.4
+ * No changes
+
+2022.1:
+ * Version 3.4
+ * Feature Enhancement: 1.Support added for automatic-direction SD Level Shifters.
+ * Feature Enhancement: 2.Support for exporting SD slot type and TAP values.
+ * Revision change in one or more subcores
+
+2021.2.2:
+ * Version 3.3 (Rev. 6)
+ * No changes
+
+2021.2.1:
+ * Version 3.3 (Rev. 6)
+ * No changes
+
+2021.2:
+ * Version 3.3 (Rev. 6)
+ * General: Changelog available at https://www.xilinx.com/support/answers/76872.html
+ * Revision change in one or more subcores
+
+2021.1.1:
+ * Version 3.3 (Rev. 5)
+ * No changes
+
+2021.1:
+ * Version 3.3 (Rev. 5)
+ * Revision change in one or more subcores
+
+2020.3:
+ * Version 3.3 (Rev. 4)
+ * Revision change in one or more subcores
+
+2020.2.2:
+ * Version 3.3 (Rev. 3)
+ * No changes
+
+2020.2.1:
+ * Version 3.3 (Rev. 3)
+ * No changes
+
+2020.2:
+ * Version 3.3 (Rev. 3)
+ * Revision change in one or more subcores
+
+2020.1.1:
+ * Version 3.3 (Rev. 2)
+ * No changes
+
+2020.1:
+ * Version 3.3 (Rev. 2)
+ * Revision change in one or more subcores
+
+2019.2.2:
+ * Version 3.3 (Rev. 1)
+ * No changes
+
+2019.2.1:
+ * Version 3.3 (Rev. 1)
+ * No changes
+
+2019.2:
+ * Version 3.3 (Rev. 1)
+ * Bug Fix: 1.Updated SPI Interface.
+ * Revision change in one or more subcores
+
+2019.1.3:
+ * Version 3.3
+ * No changes
+
+2019.1.2:
+ * Version 3.3
+ * No changes
+
+2019.1.1:
+ * Version 3.3
+ * No changes
+
+2019.1:
+ * Version 3.3
+ * Bug Fix: 1.Fix for DMA based peripherals to work with SMMU.
+ * Bug Fix: 2.Updated the ddrc, phy driver files to set LPDDR4 VREF CA value to "30.8 %".
+ * Bug Fix: 3.clk_to_pl_bufg port is disabled when internal clock source is used for gem tsu clock
+ * Feature Enhancement: 1.Support added for Dynamic DDR controller configuration.
+ * Feature Enhancement: 2.Support added for GPIO polarity control.
+ * Feature Enhancement: 3.Added Manual QoS setting support for HP interface.
+ * Feature Enhancement: 4.Added USB3 dual clock enablement support.
+ * Revision change in one or more subcores
+
+2018.3.1:
+ * Version 3.2 (Rev. 2)
+ * No changes
+
+2018.3:
+ * Version 3.2 (Rev. 2)
+ * Bug Fix: 1.DRC to check DDR Actual frequecny >= 332MHZ and based on this critical warning is generated.
+ * Bug Fix: 2.Introduced psu_init_ddr_self_refresh proc in psu_init.c/tcl
+ * Bug Fix: 3.Enabled DDR high address by default.
+ * Bug Fix: 4.Fractional clocking issues bug fixes for APU and Video clocks .
+ * Bug Fix: 5.Manual and Auto modes clocking consistent output issue with same multipliers/divisors fixed.
+ * Bug Fix: 5.Critical warning is shown when GEM TSU Clk is connected to EMIO and BUFG clock port pair is not looped back.
+ * Bug Fix: 6.Added parameters to propagate loop back connectivity information of GEM TSU port clk_to_pl_bufg for register configuration.
+ * Feature Enhancement: 1.USB phy reset introduced under I/O configuration page.
+ * Revision change in one or more subcores
+
+2018.2:
+ * Version 3.2 (Rev. 1)
+ * Bug Fix: 1.SD0_8BIT field of SD_CONFIG_REG2(0xFF180320) register will be updated based on SD data transfer mode (4Bit/8Bit).
+ * Bug Fix: 2.Fixed incorrect power report calculation for CG devices.
+ * Revision change in one or more subcores
+
+2018.1:
+ * Version 3.2
+ * Bug Fix: 1.emio_enet0_enet_tsu_timer_cnt port is enabled.
+ * Bug Fix: 2.RFSoC Devices were using incorrect Si revision.
+ * Bug Fix: 3.IP now allows Live video pins enabling without Display port using at-least one GT.
+ * Bug Fix: 4.Updated the ddrc, phy driver files to prevent overflow/underflow issues.
+ * Bug Fix: 5.Changed LPDDR3 cfg.speed_bin to cfg.freq_mhz for EMR2-RL/WL calculation.
+ * Bug Fix: 6.Fixed the tphy_wrcslat parameter.
+ * Bug Fix: 7.Added separate parameters for USB3 HUB port enablement. PSU__USE__USB3_0_HUB and PSU__USE__USB3_1_HUB.
+ * Bug Fix: 8.Fixed incorrect AMS clock setting in psu_init.
+ * Bug Fix: 9.Simplified PCW-GEM TSU CLK selection by setting bit[22] of GEM_CLK_CTRL when TSU clock loop backed from PL and exposing emio_enet0_enet_tsu_timer_cnt[93:0] output port even when TSU clock is source from PS.
+ * Bug Fix: 10.Cache Coherency feature is tested for EL1 - NS (on Native Linux) and EL3 applications.
+ * Feature Enhancement: 1.The fractional clocking enable (FracEn) option is provided in Vivado for the ACPU to facilitate their precise
+ * Feature Enhancement: clocking. When this option is checked/enabled the fractional value for the feedback value is configured for the respective PLL.
+ * Feature Enhancement: 2.Self Refresh Functionality- When feature is enabled then top 1 MB of Lower DDR is reserved for internal purposes.
+ * Feature Enhancement: 3.MPSoC PMU GPO initial state polarity configuration is supported from 2018.1.
+ * Feature Enhancement: 4.When the DDR preset is selected, the clocking solution will be adjusted to use DPLL for DDR and DPLL will be given high priority/biased to achieve the DDR Memory Interface Device Frequency.
+ * Feature Enhancement: 5.Zynq US+ RFSOC based new devices are added
+ * Revision change in one or more subcores
+
+2017.4:
+ * Version 3.1 (Rev. 1)
+ * Issues Resolved:
+ * IP constraints does not have a consistent order.
+ * Axi_vip wrapper issues on ACP port,S_AXI0_HP0_FPD port.
+ * Issues with constraint generation in SDx runs.
+ * Resolved Propagation of USER strength parameter PSU__M_AXI_GP2__FREQMHZ  during upgrade from 2017.2.
+ * Revision change in one or more subcores
+
+2017.3:
+ * Version 3.1
+ * HASH(0x26438e0)
+ * 1. The fractional clocking enable (FracEn) option is provided in Vivado only for the DP_VIDEO and DP_AUDIO peripherals to facilitate their precise.
+ * clocking. When this option is checked/enabled the fractional value for the feedback value is configured for the respective PLL.
+ * HASH(0x26438f0)
+ * automatically.Each preset assumes a specific Memory Interface Device Frequency verify that the Actual Interface frequency is similar to the requested.
+ * Currently Xilinx provides three presets.
+ * HASH(0x2643910)
+ * HASH(0x2643930)
+ * HASH(0x2643950)
+ * HASH(0x2643970)
+ * 1.SMMU register 0xFD5F0018 is always initialized with 0x8000001F as part of Erroneous initialization of iou secure/non-secure access registers.
+ * 2.Added parameter PSU_DDRC_ENABLE_LP4_HAS_ECC_COMP which will be enabled automatically when LPDDR4 ECC is enabled. user can still enable this
+ * parameter without ECC button enabled when testing a ECC board but with ECC disabled.
+ * 3.Updated DDR4 tCK speed bin boundaries by 1ps to match DDR4 JEDEC specification.
+ * 4.Corrected SD0 SD 2.0 over EMIO HDL wrapper bus width to 4-bit wide.
+ * 5.USB2.0 works now independently of USB3.0 GTR.
+ * 6.Fine granularity refresh mode = 1X is now allowed only in Temp Controlled Refresh Mode PS DDR Temp Controlled refresh requires 1x refresh mode.
+ * HASH(0x2643990)
+ * 8.DDR4-2400T speed bin added.
+
+2017.2:
+ * Version 3.0 (Rev. 1)
+ * 1. The maximum frequency for the LPD interconnect is reduced to 260 Mhz for ES1 and ES2 Si; A critical
+ * warning will be generated for such designs.
+ * 2. TSU_SIGNALS can be enabled when GEM_PERIPHERAL_IO is on MIO or GT Lane.In order to enable these,
+ * use the PS-PL Configuration (General/Others/GEM) in the GUI.
+ * 3. azynquplus device support added.
+
+2017.1:
+ * Version 3.0
+ * Multiple changes in interface and signal names for Zynq US+ MPSoC. As a result of this, upgrade
+ * from project prior to 2016.4 may not be complete,requiring re-entry of settings. Please refer
+ * to Xilinx Answer 67861 for upgrade details.
+ * Interface and Signal Name changes
+ * HASH(0x26437c0)
+ * in prior releases. Interfaces should not have clocks as part of them. Clock signals have been separated
+ * from ENET_FIFO interface in this release. In addition to this change, the FIFO_ENET interface is automatically
+ * disabled on upgrade. If the design was making use of the interface, reconnect the same.
+ * HASH(0x26437d0)
+ * In order to enable these, use the PS-PL Configuration (General/Others) in the GUI.
+ * HASH(0x26437f0)
+ * This did not allow for the accurate mapping of the IPI channels to respective interrupts. These have now been
+ * split into individual interrupt lines. For eg., ps_pl_irq_pl_ipi[3;0] in prior releases will now be seen
+ * as ps_pl_irq_ipi_channel7 through ps_pl-irq_ipi_channel10. Note that the actual port names will depend
+ * on the channel selected in GUI.
+ * HASH(0x2643810)
+ * given under PS - PL Configuration (General/Others) in the GUI.
+ * Multiple changes in DDR for Zynq US+ MPSoC as a result some of the UI options are removed and DRCs
+ * have been added and modifed
+ * 1. In prior release, DDR settings such as timing parameters were validated based on the Speed Bin and
+ * User Requested Frequency. In 2017.1 release, the method has been updated to validate based on the actual
+ * calculated frequency based on PLL output. This frequency is  displayed on the DDR page. The upgrade may
+ * fail if your timing value settings do not match the actual frequency computed.
+ * General Updates
+ * 1. Isolation Configuration  has been improved in 2017.1 release; Refer to PG201 for complete details.
+ * HASH(0x2643830)
+ * 3. Zynq UltraScale+ Block diagram has been updated in the GUI to reflect availability of blocks and the
+ * right names for the same.
+ * 4. Tool Tips have been added to the GUI for usability.
+ * Additional DRC checks
+ * HASH(0x2643850)
+ * Checks have been added to limit this to the correct range.
+ * Upgrade with incorrect frequency will not be successful.
+ * HASH(0x2643870)
+ * as critical warning
+
+2016.4:
+ * Version 2.0 (Rev. 1)
+ * Updated DDR4/LPDDR4/LPDDR3 timing parameters and drift settings for DDR configuration registers
+
+2016.3:
+ * Version 2.0
+ * Inverters added to cmden and dataen ports of emio_sdio interface
+
+2016.2:
+ * Version 1.2
+ * HASH(0x26436e0)
+ * 1. Clk & Ctl signals for Trace are not shown in GUI when trace width is selected as 16. This is fixed.
+ * 2. DP Aux ports are required for proper functionality of DisplayPort.
+ * Hence Aux is enabled when Display Port is selected
+ * 3. MPSoC allows the option to route DPAUX through MIO. This has been enabled in 2016.2.
+ * Note that for ZU9 ES1 devices,it's recommended to not use the MIO option for DP Aux.
+ * 4. DRC enabled for clocking of GEM interfaces to allow only the divisor values which are generating correct
+ * frequencies as requested for GEM to work. The divisor values generated may or may not be scalable to
+ * HASH(0x26436f0)
+ * values can be generated to support 25MHz and 2.5MHz, but may not generate 125MHz.
+ * HASH(0x2643710)
+ * Support added for LPDDR3 in PCW
+ * HASH(0x2643730)
+ * 1. Inverter has been added for interface signal with in the PS HDL wrapper for multiple tri-state based
+ * peripherals. This includes SPI, I2C, SDIO, MDIO for Ethernet and GPIO interfaces. As a result, all the
+ * interfaces with _t_n ports are optional and not part of standard interface definition. New ports with _t
+ * are added to the interfaces. On upgrade from prior releases, _t_n ports will be used by default.
+ * It is user's responsibility to update the connections. For all new designs starting in 2016.2, _t_n
+ * ports will not be available.
+ * 2. DP_Video_ref_clk and DP_Audio_ref_clk are brought out in the Zynq UltraScale+ MPSoC wrapper file.
+ * 3. Updates to support Clk & Ctl signals for Trace when width is > 16. Added HDL parameter as C_Trace_Data_Width
+ * 4. Other bug fixes.
+
+2016.1:
+ * Version 1.1
+ * Availability of up to 4 PL reset signals using GPIO through EMIO
+ * Availability of default PL clock signal.
+ * FIFO & PTP interfaces on GEM are always available through EMIO
+ * dp_aux_data_oe_n is enabled when Display Port is enabled along with DPAUX through EMIO
+ * Update in PSS_IO attributes, All Io attribute parameters including those of DDR are being dumped in HDL.(*PSS_IO= Signal Name, DiffPair Type, DiffPair Signal,Direction, Site Type, IO Standard, Drive (mA), Slew Rate, Pull Type, IBIS Model, ODT, OUTPUT_IMPEDANCE) and its corresponding signals are being written into HDL
+ * Changes in PSS_Power, Clock frequency, data width of DDR3, VCO updated.
+ * F2P Interrupt logic updated
+ * Debug clocks added
+ * EMIO, O,I,and T wire added to reflect the same number of EMIO (Outputs).
+
+2015.4.2:
+ * Version 1.0 (Rev. 2)
+ * No changes
+
+2015.4.1:
+ * Version 1.0 (Rev. 2)
+ * No changes
+
+2015.4:
+ * Version 1.0 (Rev. 2)
+ * Added appropriate GT lanes for DP
+ * Voltage swing level settings for GT lanes
+ * Reference clocks of PLL selectable
+
+2015.3:
+ * Version 1.0 (Rev. 1)
+ * Added IO pad report
+ * IP revision number added to HDL module library and include file names to support designs with both locked and upgraded IP instances
+
+2015.2.1:
+ * Version 1.0
+ * No changes
+
+2015.2:
+ * Version 1.0
+ * Initial release
+
+(c) Copyright 2015 - 2025 Advanced Micro Devices, Inc. All rights reserved.
+
+This file contains confidential and proprietary information
+of AMD and is protected under U.S. and international copyright
+and other intellectual property laws.
+
+DISCLAIMER
+This disclaimer is not a license and does not grant any
+rights to the materials distributed herewith. Except as
+otherwise provided in a valid license issued to you by
+AMD, and to the maximum extent permitted by applicable
+law: (1) THESE MATERIALS ARE MADE AVAILABLE "AS IS" AND
+WITH ALL FAULTS, AND AMD HEREBY DISCLAIMS ALL WARRANTIES
+AND CONDITIONS, EXPRESS, IMPLIED, OR STATUTORY, INCLUDING
+BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, NON-
+INFRINGEMENT, OR FITNESS FOR ANY PARTICULAR PURPOSE; and
+(2) AMD shall not be liable (whether in contract or tort,
+including negligence, or under any other theory of
+liability) for any loss or damage of any kind or nature
+related to, arising under or in connection with these
+materials, including for any direct, or any indirect,
+special, incidental, or consequential loss or damage
+(including loss of data, profits, goodwill, or any type of
+loss or damage suffered as a result of any action brought
+by a third party) even if such damage or loss was
+reasonably foreseeable or AMD had been advised of the
+possibility of the same.
+
+CRITICAL APPLICATIONS
+AMD products are not designed or intended to be fail-
+safe, or for use in any application requiring fail-safe
+performance, such as life-support or safety devices or
+systems, Class III medical devices, nuclear facilities,
+applications related to the deployment of airbags, or any
+other applications that could lead to death, personal
+injury, or severe property or environmental damage
+(individually and collectively, "Critical
+Applications"). Customer assumes the sole risk and
+liability of any use of AMD products in Critical
+Applications, subject only to applicable laws and
+regulations governing limitations on product liability.
+
+THIS COPYRIGHT NOTICE AND DISCLAIMER MUST BE RETAINED AS
+PART OF THIS FILE AT ALL TIMES.

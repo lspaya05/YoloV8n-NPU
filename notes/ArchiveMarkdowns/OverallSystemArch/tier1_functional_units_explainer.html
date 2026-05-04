@@ -1,0 +1,143 @@
+
+<h2 class="sr-only">Tier 1 NPU functional units explained: 2D strided DMA, activation LUT, and per-channel requantization</h2>
+<style>
+.card{margin-bottom:20px;border-radius:var(--border-radius-lg);border:.5px solid var(--color-border-tertiary);overflow:hidden}
+.ch{padding:14px 16px;background:var(--color-background-secondary);border-bottom:.5px solid var(--color-border-tertiary)}
+.cb{padding:16px}
+.t1{font-size:14px;font-weight:500;color:var(--color-text-primary)}
+.t2{font-size:12px;color:var(--color-text-secondary);margin-top:2px}
+.ex{font-size:13px;color:var(--color-text-secondary);line-height:1.65;margin-bottom:14px}
+.gr{display:flex;gap:2px;margin-bottom:2px}
+.ce{width:34px;height:26px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500}
+.ct{background:#5DCAA5;color:#085041}
+.cs{background:#D3D1C7;color:#888780}
+.cz{background:#B5D4F4;color:#0C447C}
+.co{background:#F1EFE8;color:#B4B2A9}
+.note{margin-top:12px;padding:10px 12px;background:var(--color-background-secondary);font-size:12px;color:var(--color-text-secondary);border-radius:0}
+.pill{padding:5px 10px;border-radius:6px;font-size:12px;font-weight:500;text-align:center;white-space:nowrap}
+.row{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+</style>
+
+<div class="card">
+  <div class="ch">
+    <div class="t1">2D strided DMA + zero-padding insertion</div>
+    <div class="t2">the smart memory copier</div>
+  </div>
+  <div class="cb">
+    <div class="ex">Your feature map lives in DRAM as flat rows back-to-back. When you need a tile (a small rectangle from it), its rows are <span style="font-weight:500;color:var(--color-text-primary)">not next to each other</span> — there is a gap between each tile row equal to the columns you do not need. Without this unit, your CPU has to manually copy row-by-row, burning cycles. The DMA does the whole thing automatically from one descriptor: base address, row stride, tile size — done.<br><br>At the image edge, a tile hangs off the side of the image. The kernel would read out-of-bounds memory. Instead the DMA <span style="font-weight:500;color:var(--color-text-primary)">inserts synthetic zero cells</span> on the border, so the systolic array always sees a full properly-padded tile and never needs to know it is at the edge.</div>
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:10px;color:var(--color-text-secondary);margin-bottom:6px">feature map in DRAM (6 cols wide)</div>
+        <div class="gr"><div class="ce ct">✓</div><div class="ce ct">✓</div><div class="ce ct">✓</div><div class="ce cs">✕</div><div class="ce cs">✕</div><div class="ce cs">✕</div></div>
+        <div class="gr"><div class="ce ct">✓</div><div class="ce ct">✓</div><div class="ce ct">✓</div><div class="ce cs">✕</div><div class="ce cs">✕</div><div class="ce cs">✕</div></div>
+        <div class="gr"><div class="ce ct">✓</div><div class="ce ct">✓</div><div class="ce ct">✓</div><div class="ce cs">✕</div><div class="ce cs">✕</div><div class="ce cs">✕</div></div>
+        <div class="gr"><div class="ce co"></div><div class="ce co"></div><div class="ce co"></div><div class="ce co"></div><div class="ce co"></div><div class="ce co"></div></div>
+        <div style="font-size:9px;color:var(--color-text-secondary);margin-top:4px"><span style="color:#1D9E75">■</span> tile data &nbsp;<span style="color:#888780">■</span> DMA skips &nbsp;<span style="color:#B4B2A9">■</span> other rows</div>
+      </div>
+      <div style="font-size:20px;color:var(--color-text-secondary)">→</div>
+      <div>
+        <div style="font-size:10px;color:var(--color-text-secondary);margin-bottom:6px">SRAM receives (pad = 1)</div>
+        <div class="gr"><div class="ce cz">0</div><div class="ce cz">0</div><div class="ce cz">0</div><div class="ce cz">0</div><div class="ce cz">0</div></div>
+        <div class="gr"><div class="ce cz">0</div><div class="ce ct"></div><div class="ce ct"></div><div class="ce ct"></div><div class="ce cz">0</div></div>
+        <div class="gr"><div class="ce cz">0</div><div class="ce ct"></div><div class="ce ct"></div><div class="ce ct"></div><div class="ce cz">0</div></div>
+        <div class="gr"><div class="ce cz">0</div><div class="ce ct"></div><div class="ce ct"></div><div class="ce ct"></div><div class="ce cz">0</div></div>
+        <div class="gr"><div class="ce cz">0</div><div class="ce cz">0</div><div class="ce cz">0</div><div class="ce cz">0</div><div class="ce cz">0</div></div>
+        <div style="font-size:9px;color:var(--color-text-secondary);margin-top:4px"><span style="color:#1D9E75">■</span> real data &nbsp;<span style="color:#3B8BD4">■</span> inserted zeros</div>
+      </div>
+      <div style="font-size:12px;color:var(--color-text-secondary);max-width:180px;line-height:1.5">One descriptor: base ptr + row stride + tile dims + pad counts. The systolic array never knows it is at the image edge.</div>
+    </div>
+    <div class="note" style="border-left:3px solid #1D9E75;margin-top:14px">Without this, the ARM has to manually re-pack every tile before each layer dispatch — often the single biggest source of latency in naive NPU implementations.</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="ch">
+    <div class="t1">Activation LUT</div>
+    <div class="t2">the answer key</div>
+  </div>
+  <div class="cb">
+    <div class="ex">SiLU is x · σ(x), where σ(x) = 1 / (1 + e^−x). Computing that from scratch in hardware means an exponent, an addition, a division, and a multiply — expensive to pipeline, tricky to keep precise in fixed-point. But INT8 only has <span style="font-weight:500;color:var(--color-text-primary)">exactly 256 possible input values</span> (-128 to 127). So you pre-compute all 256 answers offline and store them in a 256-byte table baked into a block RAM in the VPU pipeline. At runtime: input arrives, it is used as an array index, the answer comes straight out the other side — <span style="font-weight:500;color:var(--color-text-primary)">one clock cycle, zero math</span>. And if you load different bytes into the table before a layer runs, you get a completely different activation function. ReLU, GELU, Hardswish — zero RTL changes required.</div>
+    <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+      <div>
+        <div style="font-size:10px;color:var(--color-text-secondary);margin-bottom:8px">without LUT — compute fresh every time</div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+          <div class="pill" style="background:#EEEDFE;color:#3C3489;width:108px">input: −37</div>
+          <div style="font-size:10px;color:var(--color-text-secondary)">↓</div>
+          <div class="pill" style="background:#FAECE7;color:#712B13;width:148px">e^(+37) — hard</div>
+          <div style="font-size:10px;color:var(--color-text-secondary)">↓</div>
+          <div class="pill" style="background:#FAECE7;color:#712B13;width:148px">1 / (1 + e^37)</div>
+          <div style="font-size:10px;color:var(--color-text-secondary)">↓</div>
+          <div class="pill" style="background:#FAECE7;color:#712B13;width:148px">result × −37</div>
+          <div style="font-size:10px;color:var(--color-text-secondary);margin-top:2px">~6 cycles per element</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;padding-top:52px;font-size:13px;color:var(--color-text-secondary)">vs</div>
+      <div>
+        <div style="font-size:10px;color:var(--color-text-secondary);margin-bottom:8px">with LUT — just look it up</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+            <div class="pill" style="background:#EEEDFE;color:#3C3489;width:108px">input: −37</div>
+            <div style="font-size:10px;color:var(--color-text-secondary)">index = 91</div>
+            <div style="font-size:13px;color:var(--color-text-secondary)">→</div>
+            <div style="font-size:10px;color:var(--color-text-secondary);margin-top:18px">1 cycle</div>
+          </div>
+          <div style="border:.5px solid var(--color-border-tertiary);border-radius:8px;overflow:hidden;font-size:11px">
+            <div style="padding:4px 10px;background:var(--color-background-secondary);display:flex;gap:16px;color:var(--color-text-secondary)"><span style="width:30px">idx</span><span>out</span></div>
+            <div style="padding:2px 10px;display:flex;gap:16px;color:var(--color-text-secondary)"><span style="width:30px">…</span><span>…</span></div>
+            <div style="padding:4px 10px;background:#E1F5EE;display:flex;gap:16px;font-weight:500;color:#085041"><span style="width:30px">91</span><span>−36</span></div>
+            <div style="padding:2px 10px;display:flex;gap:16px;color:var(--color-text-secondary)"><span style="width:30px">92</span><span>−35</span></div>
+            <div style="padding:2px 10px;display:flex;gap:16px;color:var(--color-text-secondary)"><span style="width:30px">…</span><span>…</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note" style="border-left:3px solid #9FE1CB;margin-top:14px">256 bytes of block RAM. Write new bytes before a layer fires = brand new activation function. This is what makes your VPU activation-function-agnostic at essentially zero hardware cost.</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="ch">
+    <div class="t1">Per-channel requantization pipeline</div>
+    <div class="t2">the custom squeezer</div>
+  </div>
+  <div class="cb">
+    <div class="ex">The systolic array accumulates into <span style="font-weight:500;color:var(--color-text-primary)">INT32</span> — numbers up to ±2 billion. The next layer and your SRAM want <span style="font-weight:500;color:var(--color-text-primary)">INT8</span> — numbers between −128 and 127. You need to scale down and clip. The catch: each output channel needs its own scale factor, determined during quantization. Channel 0's weights might be 3× bigger than channel 1's, so their raw INT32 outputs live on completely different scales. One global divisor will crush some channels into ±127 (saturated — all detail lost) while rounding others to zero (underflow — also dead).</div>
+    <div style="font-size:10px;color:var(--color-text-secondary);margin-bottom:10px">per-channel — each gets its own (M, shift) pair:</div>
+    <div class="row">
+      <div style="font-size:11px;font-weight:500;color:var(--color-text-primary);width:42px">ch 0</div>
+      <div class="pill" style="background:#EEEDFE;color:#3C3489;min-width:78px">+48,320</div>
+      <div style="font-size:11px;color:var(--color-text-secondary);flex:1">× M₀, >> S₀</div>
+      <div style="font-size:14px;color:var(--color-text-secondary)">→</div>
+      <div class="pill" style="background:#E1F5EE;color:#085041;min-width:48px">+126</div>
+      <div style="font-size:10px;color:var(--color-text-success)">in range</div>
+    </div>
+    <div class="row">
+      <div style="font-size:11px;font-weight:500;color:var(--color-text-primary);width:42px">ch 1</div>
+      <div class="pill" style="background:#EEEDFE;color:#3C3489;min-width:78px">+12,800</div>
+      <div style="font-size:11px;color:var(--color-text-secondary);flex:1">× M₁, >> S₁</div>
+      <div style="font-size:14px;color:var(--color-text-secondary)">→</div>
+      <div class="pill" style="background:#E1F5EE;color:#085041;min-width:48px">+33</div>
+      <div style="font-size:10px;color:var(--color-text-success)">in range</div>
+    </div>
+    <div class="row">
+      <div style="font-size:11px;font-weight:500;color:var(--color-text-primary);width:42px">ch 2</div>
+      <div class="pill" style="background:#EEEDFE;color:#3C3489;min-width:78px">−6,100</div>
+      <div style="font-size:11px;color:var(--color-text-secondary);flex:1">× M₂, >> S₂</div>
+      <div style="font-size:14px;color:var(--color-text-secondary)">→</div>
+      <div class="pill" style="background:#E1F5EE;color:#085041;min-width:48px">−24</div>
+      <div style="font-size:10px;color:var(--color-text-success)">in range</div>
+    </div>
+    <div style="border-top:.5px solid var(--color-border-tertiary);margin:10px 0 8px;padding-top:10px">
+      <div style="font-size:10px;font-weight:500;color:var(--color-text-secondary);margin-bottom:8px">one global divisor — wrong:</div>
+      <div class="row">
+        <div style="font-size:11px;font-weight:500;color:var(--color-text-primary);width:42px">ch 0</div>
+        <div class="pill" style="background:#EEEDFE;color:#3C3489;min-width:78px">+48,320</div>
+        <div style="font-size:11px;color:var(--color-text-secondary);flex:1">× M_global, >> S</div>
+        <div style="font-size:14px;color:var(--color-text-secondary)">→</div>
+        <div class="pill" style="background:#FCEBEB;color:#791F1F;min-width:78px">+252 → clip</div>
+        <div style="font-size:10px;color:var(--color-text-danger)">saturated</div>
+      </div>
+    </div>
+    <div class="note" style="border-left:3px solid #EF9F27;margin-top:4px">Hardware: a SRAM-resident coefficient buffer holding (M, S) per output channel. The VPU loads the next pair each cycle as it walks the output tile. Skipping per-channel scaling is the most common first cause of accuracy collapse in first-draft NPU implementations.</div>
+  </div>
+</div>
