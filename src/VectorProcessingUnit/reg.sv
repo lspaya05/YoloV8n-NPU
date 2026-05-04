@@ -10,14 +10,16 @@
 // Outputs:
 //     - out: 32-bit registered output
 
-module reg(in, out, clk, enable);
+module vpe_reg(in, out, clk, enable, rst);
 	input logic [31:0] in;
 	output logic [31:0] out;
-	input logic clk, enable;
+	input logic clk, enable, rst;
 	
 	always_ff @(posedge clk) begin
-		if (enable)
-			out <= in;
+		if (rst)
+            out <= 32'h00000000;
+        else if (enable)
+            out <= in;
 	end
 	
 endmodule
