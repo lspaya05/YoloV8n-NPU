@@ -16,7 +16,7 @@ module psb_tb;
     logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] sa_row_in [ARRAY_LENGTH - 1 : 0];
 
     // Outputs from the PSB.
-    logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] requant_row_out [ARRAY_LENGTH - 1 : 0];
+    logic [ARRAY_LENGTH*ACCUMULATOR_BITWIDTH - 1 : 0] requant_row_out;
     logic [$clog2(ARRAY_HEIGHT) - 1 : 0] row_index_out;
     logic row_out_valid;
     logic acc_done;
@@ -131,9 +131,10 @@ module psb_tb;
             end
 
             for (col = 0; col < ARRAY_LENGTH; col = col + 1) begin
-                if (requant_row_out[col] !== expected[row][col]) begin
+                if ($signed(requant_row_out[col*ACCUMULATOR_BITWIDTH +: ACCUMULATOR_BITWIDTH]) !== expected[row][col]) begin
                     $display("FAIL test 2: row %0d col %0d expected %0d got %0d",
-                             row, col, expected[row][col], requant_row_out[col]);
+                             row, col, expected[row][col],
+                             $signed(requant_row_out[col*ACCUMULATOR_BITWIDTH +: ACCUMULATOR_BITWIDTH]));
                     errors = errors + 1;
                 end
             end
@@ -204,9 +205,10 @@ module psb_tb;
             #1;
 
             for (col = 0; col < ARRAY_LENGTH; col = col + 1) begin
-                if (requant_row_out[col] !== expected[row][col]) begin
+                if ($signed(requant_row_out[col*ACCUMULATOR_BITWIDTH +: ACCUMULATOR_BITWIDTH]) !== expected[row][col]) begin
                     $display("FAIL test 3: row %0d col %0d expected %0d got %0d",
-                             row, col, expected[row][col], requant_row_out[col]);
+                             row, col, expected[row][col],
+                             $signed(requant_row_out[col*ACCUMULATOR_BITWIDTH +: ACCUMULATOR_BITWIDTH]));
                     errors = errors + 1;
                 end
             end
