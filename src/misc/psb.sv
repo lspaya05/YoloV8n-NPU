@@ -13,6 +13,13 @@
 // multiply. If a layer has too many input channels to process all at once, the
 // Systolic Array computes one chunk first, then another chunk, and the PSB adds
 // those chunk results together until the full answer is ready.
+//
+// The row sent to the requant unit is packed instead of unpacked because this is
+// a synthesis-facing module boundary. A packed row is one clean bus, so the PSB
+// can connect directly into RequantUnit, and RequantUnit can connect directly
+// into the packed-lane VPU. Inside the PSB, the buffer is still unpacked because
+// row/column indexing is easier to read. I made the decision of using packed due to STA/PPA and further synthesis concerns 
+// of the overall final system.
 
 // WARNING: The array height and length must be in powers of 2 to avoid overflow in the row counters.
 
@@ -29,7 +36,7 @@ module psb #(
     input logic row_valid,
     input logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] sa_row_in [ARRAY_LENGTH - 1 : 0],
 
-    output logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] requant_row_out [ARRAY_LENGTH - 1 : 0],
+    output logic [ARRAY_LENGTH*ACCUMULATOR_BITWIDTH - 1 : 0] requant_row_out,
     output logic [$clog2(ARRAY_HEIGHT) - 1 : 0] row_index_out,
     output logic row_out_valid,
     output logic acc_done,
@@ -235,11 +242,13 @@ module psb #(
     end
 
     // Output row mux
+    // The PSB sends one packed row to the requant unit each cycle.
+    // Column 0 is stored in bits [31:0], column 1 in bits [63:32], and so on.
     always_comb begin
         row_index_out = flush_row_count;
 
         for (int col = 0; col < ARRAY_LENGTH; col = col + 1) begin
-            requant_row_out[col] = buffer[flush_row_count][col];
+            requant_row_out[(col*ACCUMULATOR_BITWIDTH) +: ACCUMULATOR_BITWIDTH] = buffer[flush_row_count][col];
         end
     end
 
