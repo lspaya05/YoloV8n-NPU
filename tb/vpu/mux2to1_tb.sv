@@ -1,12 +1,12 @@
 module mux2to1_tb();
 
     // DUT signals
-    logic [31:0] d0, d1;
+    logic [7:0] d0, d1;
     logic select;
-    logic [31:0] y;
+    logic [7:0] y;
 
     // DUT instantiation
-    mux2to1 dut (
+    mux2to1 #(.BIT_WIDTH(8)) dut (
         .d0(d0),
         .d1(d1),
         .select(select),
@@ -16,10 +16,10 @@ module mux2to1_tb();
     // Test stimulus
     initial begin
         // Test case 1: select = 0, should output d0
-        d0 = 32'hAAAAAAAA;
-        d1 = 32'h55555555;
+        d0 = 8'hAA;
+        d1 = 8'h55;
         select = 0;
-        #1; // Small delay for combinational logic
+        #1;
         if (y !== d0) begin
             $display("FAIL: select=0, y=%h, expected=%h", y, d0);
             $finish;
@@ -50,7 +50,7 @@ module mux2to1_tb();
             $finish;
         end
 
-        $display("PASS: All tests passed");
+        $display("PASS: mux2to1 INT8 tests passed");
         $finish;
     end
 
