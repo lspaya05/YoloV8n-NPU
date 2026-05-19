@@ -30,3 +30,30 @@ Need to complete by 4/23: \
 Bernardo: Reading VPU(Relu, Gelu, LN), Defining the microarchitecture and also deciding the input/output bits, design for controllers and datapath..etc. \
  
 Leonard: Drawing the microarchitecture for the General NPU architecture and making sure the overall flow that we have right now is sufficient to run Yolov8
+
+## Tasks 5/19-5/26:
+
+System Verilog 
+tb for requant pipelined
+Instruction FIFO IP, instr decode.
+Sequencer
+Flag exchange for each Functional Unit: VPU, SA, REQUANT, DMA, etc
+Some of the SRAMS
+-AXI Master 
+-DMA controller 
+-IP blocks for clocking, memory and a bunch of random stuff
+
+Driver / FPGA side:
+getting it to work with the Linux kernel
+-memory management for DDR
+optimizing timing? Aiming for 300MHZ
+
+Number recognition model:
+find model
+-train using our own data or other data idk
+make file or whatever that we can use on the FPGA for inference
+
+Leonard:
+General Instruction Arch
+Sequencer, Instructions FIFO
+DMA + AXI, SRAM Hub finalize
