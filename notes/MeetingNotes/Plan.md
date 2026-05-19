@@ -57,3 +57,8 @@ Leonard:
 General Instruction Arch
 Sequencer, Instructions FIFO
 DMA + AXI, SRAM Hub finalize
+
+Bernardo Lin:
+Tb for requant pipeline
+Flag exchange for VPU
+Most of the SRAM Hub
