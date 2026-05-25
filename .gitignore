@@ -79,6 +79,29 @@
 /scripts/sim/*.svf
 
 # ========================
+# Linux Kernel Module Outputs
+# ========================
+*.ko
+*.mod
+*.mod.c
+*.o
+*.cmd
+Module.symvers
+modules.order
+/driver/npu_smoke
+
+# ========================
+# Python / Model Artifacts
+# ========================
+__pycache__/
+*.pyc
+.venv-yolo/
+/model_artifacts/
+/datasets/
+/yolov8n.pt
+/runs/
+
+# ========================
 # IDE / OS Misc
 # ========================
 .vscode/

@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Include from the KR260 system-user.dtsi after Vivado assigns the AXI-Lite
+ * address and interrupt line. The reg value below matches the architecture doc.
+ */
+
+&amba_pl {
+	npu0: npu@a0000000 {
+		compatible = "ee470,npu-v2", "mynpu,v2";
+		reg = <0x0 0xa0000000 0x0 0x10000>;
+		interrupt-parent = <&gic>;
+		interrupts = <0 89 4>;
+		dma-coherent;
+		status = "okay";
+	};
+};
