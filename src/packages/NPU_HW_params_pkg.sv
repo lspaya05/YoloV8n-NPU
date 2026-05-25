@@ -34,4 +34,12 @@ package NPU_HW_params_pkg;
     // -------------------------------------------------------------------------
     localparam int VPU_LANES = 64;   // vector processing lanes
 
+    // -------------------------------------------------------------------------
+    // SRAM Hub bank depths
+    // -------------------------------------------------------------------------
+    localparam int ACT_BUF_DEPTH  = 256;   // activation ping-pong (per bank)
+    localparam int WT_BUF_DEPTH   = 256;   // weight ping-pong (per bank)
+    localparam int RES_BANK_DEPTH = 1024;  // residual (skip-tensor) bank
+    localparam int OUT_BANK_DEPTH = 512;   // output bank (VPU -> DMA_STORE)
+
 endpackage : NPU_HW_params_pkg

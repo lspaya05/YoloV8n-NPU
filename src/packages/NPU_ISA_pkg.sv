@@ -62,8 +62,6 @@ package NPU_ISA_pkg;
     localparam int PAYLOAD_MSB    = 111;
     localparam int PAYLOAD_LSB    = 0;    // [111:0]  112-bit payload
 
-    localparam int PAYLOAD_WIDTH  = 112;
-
     // =========================================================================
     // Unit ID enum
     // =========================================================================

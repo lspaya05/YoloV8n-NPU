@@ -1,38 +1,133 @@
 import NPU_HW_params_pkg::*;
 import NPU_ISA_pkg::*;
 
-module NPU_TopLevel #(
 
-) (
+// AXI port naming:
+//   seq_* : Sequencer AXI4 read master (instruction fetch, HP0_SEQ)
+//   dma_* : DMA Ch0  AXI4 read master (DMA_LOAD, HP0_DMA)
+//   wt_*  : DMA Ch1  AXI4 read master (WT_LOAD,  HP1_DMA)
+
+module NPU_TopLevel (
+    input  logic clk,
+    input  logic rst,
+
+    // -------------------------------------------------------------------------
+    // AXI-Lite slave — Sequencer CSR (ARM PS writes instr_base / count / kick)
+    // Write-only: AW + W + B channels only (no AR/R per v2.1 arch doc §14.2).
+    // -------------------------------------------------------------------------
+    input  logic [31:0] s_axil_awaddr,
+    input  logic        s_axil_awvalid,
+    output logic        s_axil_awready,
+    input  logic [31:0] s_axil_wdata,
+    input  logic        s_axil_wvalid,
+    output logic        s_axil_wready,
+    output logic [1:0]  s_axil_bresp,
+    output logic        s_axil_bvalid,
+    input  logic        s_axil_bready,
+
+    // -------------------------------------------------------------------------
+    // HP0_SEQ — Sequencer AXI4 read master (instruction fetch)
+    // 4-beat 32-bit INCR bursts; Sequencer assembles 128-bit instructions.
+    // -------------------------------------------------------------------------
+    output logic [43:0] seq_araddr,
+    output logic        seq_arvalid,
+    output logic [7:0]  seq_arlen,
+    output logic [2:0]  seq_arsize,
+    output logic [1:0]  seq_arburst,
+    input  logic        seq_arready,
+    input  logic [31:0] seq_rdata,
+    input  logic        seq_rvalid,
+    input  logic        seq_rlast,
+    input  logic [1:0]  seq_rresp,
+    output logic        seq_rready,
+
+    // -------------------------------------------------------------------------
+    // HP0_DMA — DMA Ch0 AXI4 read master (DMA_LOAD activation tiles)
+    // 128-bit data, 44-bit address, INCR, arcache=0011.
+    // -------------------------------------------------------------------------
+    output logic [43:0]  dma_araddr,
+    output logic         dma_arvalid,
+    output logic [7:0]   dma_arlen,
+    output logic [2:0]   dma_arsize,
+    output logic [1:0]   dma_arburst,
+    output logic [3:0]   dma_arcache,
+    input  logic         dma_arready,
+    input  logic [127:0] dma_rdata,
+    input  logic         dma_rvalid,
+    input  logic         dma_rlast,
+    input  logic [1:0]   dma_rresp,
+    output logic         dma_rready,
+
+    // -------------------------------------------------------------------------
+    // HP1_DMA — DMA Ch1 AXI4 read master (WT_LOAD weight tiles)
+    // 128-bit data, 44-bit address, INCR, arcache=0011.
+    // -------------------------------------------------------------------------
+    output logic [43:0]  wt_araddr,
+    output logic         wt_arvalid,
+    output logic [7:0]   wt_arlen,
+    output logic [2:0]   wt_arsize,
+    output logic [1:0]   wt_arburst,
+    output logic [3:0]   wt_arcache,
+    input  logic         wt_arready,
+    input  logic [127:0] wt_rdata,
+    input  logic         wt_rvalid,
+    input  logic         wt_rlast,
+    input  logic [1:0]   wt_rresp,
+    output logic         wt_rready,
+
+    // -------------------------------------------------------------------------
+    // Status
+    // -------------------------------------------------------------------------
+    output logic irq_done,   // per-frame IRQ (final DMA_STORE done — Phase 4)
+    output logic fetch_err,  // Sequencer AXI error
+    output logic dma_err     // DMA AXI error (HP0 or HP1)
+);
+
+// Sequencer:   
+Sequencer #(
+
+) sequence_unit (
+
+); 
+
+// SRAM HUB - inc Partial Sum Buffer
+SRAMHub #(
+
+) SRAM_hub (
 
 );
 
-// DMA Engine -
 
-// Sequencer - Instruction read, decode, and routing to FIFOS
-Sequencer Seq ()
+// DMA 
 
-// Functional Unit Blocks - Implemented hardware ea. will have a case that contains the 
-//  control hardware that manages each unit. This includes instruction FIFOS, Flag registers to facilitate hand offs, etc
 
-// Can i abstract the memory into each functional unit block? - DMA will have to access it to write, but i think it should be okay
-// Would be more complex to have it all in one file then send each to different blocks.
+// Systolic Array
+SA_top #(
 
-// Instruction fetch wont use the DMA engine, this will be seperate does the data coming in need to be stored in some buffer --> 
-//      think yes because we need to store at least 4 transmissions before we can understand a full message. It also uses a different clock, 
-// should we keep the seq at this slower clock that matches transmission. We wont see any benefit from clocking higher.
-//          So in summary DDR(100HZ) --> Seq (100HZ) --> Instr Fifos (300Hz) --> ...
+) Systolic_array (
 
-// List of where DMA writes to and where functional units write too:
-// EX. FU (Type of Memory): Write - DMA, SA  Read - Requant
-// Act Bank A/B (Ping-Pong BRAM):        Write - DMA (DMA_LOAD)                     Read - SA (MATMUL), VPU (MAXPOOL/POOL mode direct)
-// Weight Bank A/B (Ping-Pong BRAM):     Write - DMA (WT_LOAD)                      Read - SA (MATMUL weight-load phase)
-// Residual Bank (BRAM/URAM):            Write - DMA (DMA_LOAD, skip tensors)        Read - VPU (ELEW_ADD direct port, bypasses SA/PSB/Requant)
-// Output Bank (BRAM):                   Write - VPU (SIMD_ACT, ELEW_ADD, MAXPOOL)  Read - DMA (DMA_STORE), VPU (HREDUCE reads prior output)
-// PSB (16x16 INT32 Register File):      Write - SA (PSB_ACC), zero-clear on FLUSH   Read - Requant (PSB_FLUSH forwards INT32)
-// Requant Coeff BRAM (512 x M/S):       Write - DMA (COEFF_LOAD)                   Read - Requant pipeline (sequential per-channel)
-// Act LUT BRAM (256 x INT8):            Write - DMA (LUT_LOAD, dispatched via VPU)  Read - VPU (SIMD_ACT, HREDUCE exp-LUT path)
+);
 
-// We send a bunch of instructions to a a bunch of different places but we have a token handshake being used to ensure timing is met
+// Partial Sum Buffer
+PSB #( 
 
-// DMA handles timing? 
+) partial_sum_buffer (
+
+);
+
+// Requantization Pipeline
+RequantPipeline #(
+
+) requantization_pipeline (
+
+);
+
+// Vector Processiong Unit
+VPU #(
+
+) vector_processing_unit (
+
+);
+
+
+endmodule
