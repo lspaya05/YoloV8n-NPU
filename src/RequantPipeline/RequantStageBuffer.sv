@@ -27,9 +27,15 @@ module RequantStageBuffer #(
 
     localparam int GROUP     = LANES_OUT / LANES_IN;
     localparam int CNT_WIDTH = $clog2(GROUP);
+    localparam int ROW_WIDTH = LANES_IN * 32;
 
     logic [LANES_OUT*32-1:0] buf_r;
     logic [CNT_WIDTH-1:0]    cnt_r;
+    int unsigned             wr_base;
+
+    always_comb begin
+        wr_base = int'(cnt_r) * ROW_WIDTH;
+    end
 
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -39,7 +45,7 @@ module RequantStageBuffer #(
         end else begin
             valid_o <= 1'b0;
             if (valid_i) begin
-                buf_r[cnt_r * (LANES_IN * 32) +: LANES_IN * 32] <= row_i;
+                buf_r[wr_base +: ROW_WIDTH] <= row_i;
                 if (cnt_r == CNT_WIDTH'(GROUP - 1)) begin
                     cnt_r   <= '0;
                     valid_o <= 1'b1;
