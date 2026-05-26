@@ -17,7 +17,7 @@ SystemVerilog Neural Engine, systolic array dataflow, target = AMD Kria **KR260*
 
 - [src/](../src/) — RTL (`*.sv`)
 - [src/packages/](../src/packages/) — shared `package`/typedefs, compiled first
-- [tb/](../tb/) — testbenches, `<module>_testbench.sv`
+- [tb/](../tb/) — testbenches, `<module>_tb.sv`
 - [scripts/sim/](../scripts/sim/) — ModelSim launchers; entrypoint [scripts/sim/runlab.do](../scripts/sim/runlab.do)
 - [scripts/waves/](../scripts/waves/) — `<module>_wave.do`
 - [vivado/](../vivado/) — Vivado project (most outputs gitignored)
@@ -29,6 +29,6 @@ SystemVerilog Neural Engine, systolic array dataflow, target = AMD Kria **KR260*
 
 - No tabs in `.sv`. Spaces only.
 - Don't commit `work/`, `*.wlf`, `transcript`, Vivado `*.runs/`, `.Xil/` — already in [.gitignore](../.gitignore).
-- Don't rename testbenches off the `<module>_testbench.sv` pattern — breaks runlab.do.
+- Don't rename testbenches off the `<module>_tb.sv` pattern — breaks runlab.do.
 - Don't modify [scripts/sim/runlab.do](../scripts/sim/runlab.do) without partner sign-off.
 - Don't invent citations in [npu-architect](skills/npu-architect/SKILL.md) output. Unknown = say unknown.

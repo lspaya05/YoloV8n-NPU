@@ -11,8 +11,8 @@ Single source of truth: [scripts/sim/runlab.do](../../scripts/sim/runlab.do).
 
 ## Naming contract (DO NOT BREAK)
 
-- Every TB file: `tb/<module>_testbench.sv`
-- Every TB top module name: `<module>_testbench` (file name minus `.sv`)
+- Every TB file: `tb/<module>_tb.sv`
+- Every TB top module name: `<module>_tb` (file name minus `.sv`)
 - Every wave file: `scripts/waves/<module>_wave.do`
 
 Breaking any of these breaks `runlab.do`.
@@ -24,7 +24,7 @@ Breaking any of these breaks `runlab.do`.
 1. `vlog src/packages/*.sv`  (packages first)
 2. `vlog src/*.sv`
 3. `vlog tb/*.sv`
-4. `vsim ${module}_testbench`
+4. `vsim ${module}_tb`
 5. `do scripts/waves/${module}_wave.do`
 6. `run -all`
 

@@ -1,11 +1,82 @@
+// Name: Leonard Paya, Bernardo Lin
+// Date: 2026-05-26
+// Top-level NPU integrating Sequencer, DMA, Systolic Array, PSB, Requant, VPU, SRAMHub, and inter-block DepFIFOs for the EE470 KR260 neural engine.
+// Inputs:
+//     - clk: System clock
+//     - rst: Active-high sync reset
+//     - s_axil_awaddr: AXI-Lite slave AW address (Sequencer CSR write)
+//     - s_axil_awvalid: AXI-Lite slave AW valid
+//     - s_axil_wdata: AXI-Lite slave W data (CSR value)
+//     - s_axil_wvalid: AXI-Lite slave W valid
+//     - s_axil_bready: AXI-Lite slave B ready
+//     - seq_arready: HP0_SEQ AR handshake ready
+//     - seq_rdata: HP0_SEQ R 32-bit instruction word
+//     - seq_rvalid: HP0_SEQ R beat valid
+//     - seq_rlast: HP0_SEQ R last-beat flag
+//     - seq_rresp: HP0_SEQ R response code
+//     - dma_arready: HP0_DMA AR handshake ready
+//     - dma_rdata: HP0_DMA R 128-bit Act tile beat
+//     - dma_rvalid: HP0_DMA R beat valid
+//     - dma_rlast: HP0_DMA R last-beat flag
+//     - dma_rresp: HP0_DMA R response code
+//     - wt_arready: HP1_DMA AR handshake ready
+//     - wt_rdata: HP1_DMA R 128-bit Weight tile beat
+//     - wt_rvalid: HP1_DMA R beat valid
+//     - wt_rlast: HP1_DMA R last-beat flag
+//     - wt_rresp: HP1_DMA R response code
+//     - st_awready: HP2_DMA AW handshake ready
+//     - st_wready: HP2_DMA W handshake ready
+//     - st_bresp: HP2_DMA B response code
+//     - st_bvalid: HP2_DMA B response valid
+// Outputs:
+//     - s_axil_awready: AXI-Lite slave AW ready
+//     - s_axil_wready: AXI-Lite slave W ready
+//     - s_axil_bresp: AXI-Lite slave B response code
+//     - s_axil_bvalid: AXI-Lite slave B valid
+//     - seq_araddr: HP0_SEQ AR 44-bit DDR address
+//     - seq_arvalid: HP0_SEQ AR valid
+//     - seq_arlen: HP0_SEQ AR burst length minus 1
+//     - seq_arsize: HP0_SEQ AR beat size
+//     - seq_arburst: HP0_SEQ AR burst type (INCR)
+//     - seq_rready: HP0_SEQ R ready
+//     - dma_araddr: HP0_DMA AR 44-bit DDR address
+//     - dma_arvalid: HP0_DMA AR valid
+//     - dma_arlen: HP0_DMA AR burst length minus 1
+//     - dma_arsize: HP0_DMA AR beat size (3'b100 = 16 B)
+//     - dma_arburst: HP0_DMA AR burst type (INCR)
+//     - dma_arcache: HP0_DMA AR cache attrs (4'b0011)
+//     - dma_rready: HP0_DMA R ready
+//     - wt_araddr: HP1_DMA AR 44-bit DDR address
+//     - wt_arvalid: HP1_DMA AR valid
+//     - wt_arlen: HP1_DMA AR burst length minus 1
+//     - wt_arsize: HP1_DMA AR beat size
+//     - wt_arburst: HP1_DMA AR burst type (INCR)
+//     - wt_arcache: HP1_DMA AR cache attrs (4'b0011)
+//     - wt_rready: HP1_DMA R ready
+//     - st_awaddr: HP2_DMA AW 44-bit DDR address
+//     - st_awvalid: HP2_DMA AW valid
+//     - st_awlen: HP2_DMA AW burst length minus 1
+//     - st_awsize: HP2_DMA AW beat size (3'b100 = 16 B)
+//     - st_awburst: HP2_DMA AW burst type (INCR)
+//     - st_awcache: HP2_DMA AW cache attrs (4'b0011)
+//     - st_wdata: HP2_DMA W 128-bit beat data
+//     - st_wstrb: HP2_DMA W byte strobes (all 1s)
+//     - st_wlast: HP2_DMA W last-beat flag
+//     - st_wvalid: HP2_DMA W valid
+//     - st_bready: HP2_DMA B response ready
+//     - irq_done: Per-frame interrupt on final DMA_STORE complete
+//     - fetch_err: Sticky Sequencer AXI fetch error
+//     - dma_err: Sticky DMA AXI error (HP0 / HP1 / HP2)
+
 import NPU_HW_params_pkg::*;
 import NPU_ISA_pkg::*;
 
 
 // AXI port naming:
-//   seq_* : Sequencer AXI4 read master (instruction fetch, HP0_SEQ)
-//   dma_* : DMA Ch0  AXI4 read master (DMA_LOAD, HP0_DMA)
-//   wt_*  : DMA Ch1  AXI4 read master (WT_LOAD,  HP1_DMA)
+//   seq_* : Sequencer AXI4 read master  (instruction fetch, HP0_SEQ)
+//   dma_* : DMA Ch0  AXI4 read master   (DMA_LOAD,  HP0_DMA)
+//   wt_*  : DMA Ch1  AXI4 read master   (WT_LOAD,   HP1_DMA)
+//   st_*  : DMA Ch0  AXI4 write master  (DMA_STORE, HP2_DMA)
 
 module NPU (
     input  logic clk,
@@ -76,6 +147,26 @@ module NPU (
     output logic         wt_rready,
 
     // -------------------------------------------------------------------------
+    // HP2_DMA — DMA Ch0 AXI4 write master (DMA_STORE Output Bank flush)
+    // 128-bit data, 44-bit address, INCR, awcache=0011.
+    // -------------------------------------------------------------------------
+    output logic [43:0]  st_awaddr,
+    output logic         st_awvalid,
+    output logic [7:0]   st_awlen,
+    output logic [2:0]   st_awsize,
+    output logic [1:0]   st_awburst,
+    output logic [3:0]   st_awcache,
+    input  logic         st_awready,
+    output logic [127:0] st_wdata,
+    output logic [15:0]  st_wstrb,
+    output logic         st_wlast,
+    output logic         st_wvalid,
+    input  logic         st_wready,
+    input  logic [1:0]   st_bresp,
+    input  logic         st_bvalid,
+    output logic         st_bready,
+
+    // -------------------------------------------------------------------------
     // Status
     // -------------------------------------------------------------------------
     output logic irq_done,   // per-frame IRQ (final DMA_STORE done — Phase 4)
@@ -109,12 +200,15 @@ module NPU (
     logic [2:0]  cfg_act_type;
     logic [2:0]  cfg_pool_size;
 
-    // UNIT_SEQ never fences on itself. UNIT_DMA is tied high this pass — DMA
-    // datapath is deferred and we don't want FENCE to stall. Other units are
-    // driven by their dispatch modules (held inactive until Phases 2–5).
+    // UNIT_SEQ never fences on itself. UNIT_DMA reports done when both DMA
+    // channels are idle (Phase 1: ch1_idle stub = 1'b1). Other units driven by
+    // their dispatch modules (held inactive until Phases 2–5).
+    logic dma_ch0_idle_w, dma_ch1_idle_w;
+    logic dma_act_bank_full_w;
+    logic dma_wt_bank_full_w;
     always_comb begin
         units_done           = 6'b0;
-        units_done[UNIT_DMA] = 1'b1;
+        units_done[UNIT_DMA] = dma_ch0_idle_w & dma_ch1_idle_w;
         units_done[UNIT_SA]  = sa_done_pulse;
         units_done[UNIT_PSB] = psb_done_pulse;
         units_done[UNIT_REQ] = req_done_pulse;
@@ -166,9 +260,97 @@ module NPU (
     );
 
 // =============================================================================
+// Dependency FIFOs — RAW/WAR ordering between units. Block-driven semantics:
+// producer pushes a token on completion; consumer's dispatch pops before
+// issuing dependent work. Push/pop tied off in Phase 1 — rewired by blocks
+// in Phases 2–6.
+// =============================================================================
+
+    localparam int DepDepth = 8;
+
+    // DMA <-> SA
+    logic dma_to_sa_push,  dma_to_sa_pop,  dma_to_sa_full,  dma_to_sa_empty;
+    logic sa_to_dma_push,  sa_to_dma_pop,  sa_to_dma_full,  sa_to_dma_empty;
+    // SA <-> PSB
+    logic sa_to_psb_push,  sa_to_psb_pop,  sa_to_psb_full,  sa_to_psb_empty;
+    logic psb_to_sa_push,  psb_to_sa_pop,  psb_to_sa_full,  psb_to_sa_empty;
+    // PSB <-> Requant
+    logic psb_to_req_push, psb_to_req_pop, psb_to_req_full, psb_to_req_empty;
+    logic req_to_psb_push, req_to_psb_pop, req_to_psb_full, req_to_psb_empty;
+    // Requant <-> VPU
+    logic req_to_vpu_push, req_to_vpu_pop, req_to_vpu_full, req_to_vpu_empty;
+    logic vpu_to_req_push, vpu_to_req_pop, vpu_to_req_full, vpu_to_req_empty;
+    // VPU <-> DMA
+    logic vpu_to_dma_push, vpu_to_dma_pop, vpu_to_dma_full, vpu_to_dma_empty;
+    logic dma_to_vpu_push, dma_to_vpu_pop, dma_to_vpu_full, dma_to_vpu_empty;
+
+    DepFIFO #(.DEPTH(DepDepth)) dep_dma_to_sa (
+        .clk(clk), .rst(rst),
+        .push(dma_to_sa_push), .pop(dma_to_sa_pop),
+        .full(dma_to_sa_full), .empty(dma_to_sa_empty)
+    );
+
+    DepFIFO #(.DEPTH(DepDepth)) dep_sa_to_dma (
+        .clk(clk), .rst(rst),
+        .push(sa_to_dma_push), .pop(sa_to_dma_pop),
+        .full(sa_to_dma_full), .empty(sa_to_dma_empty)
+    );
+
+    DepFIFO #(.DEPTH(DepDepth)) dep_sa_to_psb (
+        .clk(clk), .rst(rst),
+        .push(sa_to_psb_push), .pop(sa_to_psb_pop),
+        .full(sa_to_psb_full), .empty(sa_to_psb_empty)
+    );
+
+    DepFIFO #(.DEPTH(DepDepth)) dep_psb_to_sa (
+        .clk(clk), .rst(rst),
+        .push(psb_to_sa_push), .pop(psb_to_sa_pop),
+        .full(psb_to_sa_full), .empty(psb_to_sa_empty)
+    );
+
+    DepFIFO #(.DEPTH(DepDepth)) dep_psb_to_req (
+        .clk(clk), .rst(rst),
+        .push(psb_to_req_push), .pop(psb_to_req_pop),
+        .full(psb_to_req_full), .empty(psb_to_req_empty)
+    );
+
+    DepFIFO #(.DEPTH(DepDepth)) dep_req_to_psb (
+        .clk(clk), .rst(rst),
+        .push(req_to_psb_push), .pop(req_to_psb_pop),
+        .full(req_to_psb_full), .empty(req_to_psb_empty)
+    );
+
+    DepFIFO #(.DEPTH(DepDepth)) dep_req_to_vpu (
+        .clk(clk), .rst(rst),
+        .push(req_to_vpu_push), .pop(req_to_vpu_pop),
+        .full(req_to_vpu_full), .empty(req_to_vpu_empty)
+    );
+
+    DepFIFO #(.DEPTH(DepDepth)) dep_vpu_to_req (
+        .clk(clk), .rst(rst),
+        .push(vpu_to_req_push), .pop(vpu_to_req_pop),
+        .full(vpu_to_req_full), .empty(vpu_to_req_empty)
+    );
+
+    DepFIFO #(.DEPTH(DepDepth)) dep_vpu_to_dma (
+        .clk(clk), .rst(rst),
+        .push(vpu_to_dma_push), .pop(vpu_to_dma_pop),
+        .full(vpu_to_dma_full), .empty(vpu_to_dma_empty)
+    );
+
+    DepFIFO #(.DEPTH(DepDepth)) dep_dma_to_vpu (
+        .clk(clk), .rst(rst),
+        .push(dma_to_vpu_push), .pop(dma_to_vpu_pop),
+        .full(dma_to_vpu_full), .empty(dma_to_vpu_empty)
+    );
+
+    // All DepFIFO push/pop pins are now owned by their respective block
+    // wrappers (Phases 2–6). No tie-offs remain at NPU top.
+
+
+// =============================================================================
 // DMA block — Ch0 (LOAD/STORE/UPSAMPLE/CONCAT/COEFF) + Ch1 (WT_LOAD) FIFOs,
-// Dispatch_DMA stub, and the DMA datapath shell. DMA logic deferred; shell
-// holds `start` low so the unit stays in S_IDLE.
+// Dispatch_DMA (Phase 2 real decoder, Ch0 active), and DMA datapath.
 // =============================================================================
 
     // FIFO read-side
@@ -179,15 +361,30 @@ module NPU (
 
     assign dma_err = dma_err_w;
 
-    // Tie NPU top-level wt_* read master inactive (DMA HP1 is a write port in
-    // current DMA.sv — polarity discrepancy tracked in NPU_WIRING_PLAN.md).
-    assign wt_araddr  = 44'h0;
-    assign wt_arvalid = 1'b0;
-    assign wt_arlen   = 8'h0;
-    assign wt_arsize  = 3'b000;
-    assign wt_arburst = 2'b00;
-    assign wt_arcache = 4'b0000;
-    assign wt_rready  = 1'b0;
+    // Dispatch_DMA → DMA descriptor + handshake (Phase 2).
+    logic [31:0] desc_src_base_w;
+    logic [15:0] desc_row_stride_w;
+    logic [7:0]  desc_tile_w_w, desc_tile_h_w, desc_ch_count_w;
+    logic [3:0]  desc_pad_top_w, desc_pad_bot_w, desc_pad_left_w, desc_pad_right_w;
+    logic [1:0]  desc_fetch_mode_w;
+    logic [31:0] desc_concat_base_w;
+    logic        desc_start_w;
+
+    // DMA SRAM Act-bank write port (Phase 3). DMA's sram_waddr is sized for
+    // RES_BANK_DEPTH (10b); Act bank is ACT_BUF_DEPTH (8b) — truncate low bits.
+    logic [$clog2(RES_BANK_DEPTH)-1:0] dma_sram_waddr_w;
+    logic [127:0]                      dma_sram_wdata_w;
+    logic                              dma_sram_wen_w;
+
+    // DMA Ch1 WT_LOAD descriptor + Wt-bank write port (Phase 4).
+    logic        ch1_start_w;
+    logic [31:0] wt_src_base_w;
+    logic [$clog2(WT_BUF_DEPTH)-1:0] dma_sram_wt_waddr_w;
+    logic [127:0]                    dma_sram_wt_wdata_w;
+    logic                            dma_sram_wt_wen_w;
+
+    // wt_* read master now driven by DMA HP1 (Phase 1 ties low inside DMA.sv;
+    // Phase 4 brings up the Ch1 FSM). No top-level tie-offs needed.
 
     // DMA Ch0 — DMA_LOAD / DMA_STORE / UPSAMPLE / CONCAT / COEFF_LOAD
     FIFO #(
@@ -222,36 +419,68 @@ module NPU (
     );
 
     Dispatch_DMA u_dispatch_dma (
-        .clk        (clk),
-        .rst        (rst),
-        .ch0_dout   (dma0_dout),
-        .ch0_empty  (dma0_empty),
-        .ch0_rd_en  (dma0_rd_en),
-        .ch1_dout   (dma1_dout),
-        .ch1_empty  (dma1_empty),
-        .ch1_rd_en  (dma1_rd_en)
+        .clk                  (clk),
+        .rst                  (rst),
+
+        .ch0_dout             (dma0_dout),
+        .ch0_empty            (dma0_empty),
+        .ch0_rd_en            (dma0_rd_en),
+
+        .ch1_dout             (dma1_dout),
+        .ch1_empty            (dma1_empty),
+        .ch1_rd_en            (dma1_rd_en),
+
+        .wt_src_base          (wt_src_base_w),
+        .ch1_start            (ch1_start_w),
+        .dma_ch1_idle         (dma_ch1_idle_w),
+
+        .desc_src_base        (desc_src_base_w),
+        .desc_row_stride      (desc_row_stride_w),
+        .desc_tile_w          (desc_tile_w_w),
+        .desc_tile_h          (desc_tile_h_w),
+        .desc_ch_count        (desc_ch_count_w),
+        .desc_pad_top         (desc_pad_top_w),
+        .desc_pad_bot         (desc_pad_bot_w),
+        .desc_pad_left        (desc_pad_left_w),
+        .desc_pad_right       (desc_pad_right_w),
+        .desc_fetch_mode      (desc_fetch_mode_w),
+        .desc_concat_base     (desc_concat_base_w),
+        .desc_start           (desc_start_w),
+
+        .dma_ch0_idle         (dma_ch0_idle_w),
+
+        .dep_sa_to_dma_empty  (sa_to_dma_empty),
+        .dep_sa_to_dma_pop    (sa_to_dma_pop),
+        .dep_vpu_to_dma_empty (vpu_to_dma_empty),
+        .dep_vpu_to_dma_pop   (vpu_to_dma_pop)
     );
 
     DMA dma_unit (
         .clk          (clk),
         .rst          (rst),
 
-        // Descriptor — all tied off; DMA stays in S_IDLE.
-        .src_base     (32'h0),
-        .row_stride   (16'h0),
-        .tile_w       (8'h0),
-        .tile_h       (8'h0),
-        .ch_count     (8'h0),
-        .pad_top      (4'h0),
-        .pad_bot      (4'h0),
-        .pad_left     (4'h0),
-        .pad_right    (4'h0),
-        .fetch_mode   (2'b00),
-        .concat_base  (32'h0),
+        // Descriptor — driven by Dispatch_DMA (Phase 2).
+        .src_base     (desc_src_base_w),
+        .row_stride   (desc_row_stride_w),
+        .tile_w       (desc_tile_w_w),
+        .tile_h       (desc_tile_h_w),
+        .ch_count     (desc_ch_count_w),
+        .pad_top      (desc_pad_top_w),
+        .pad_bot      (desc_pad_bot_w),
+        .pad_left     (desc_pad_left_w),
+        .pad_right    (desc_pad_right_w),
+        .fetch_mode   (desc_fetch_mode_w),
+        .concat_base  (desc_concat_base_w),
 
-        .start        (1'b0),
-        .busy         (),
-        .done         (),
+        // Ch1 descriptor + start
+        .ch1_start    (ch1_start_w),
+        .wt_src_base  (wt_src_base_w),
+
+        .start             (desc_start_w),
+        .ch0_idle          (dma_ch0_idle_w),
+        .ch1_idle          (dma_ch1_idle_w),
+        .dma_act_bank_full (dma_act_bank_full_w),
+        .dma_wt_bank_full  (dma_wt_bank_full_w),
 
         // HP0 read — wired to NPU top-level dma_* AXI master.
         .hp0_araddr   (dma_araddr),
@@ -267,31 +496,63 @@ module NPU (
         .hp0_rresp    (dma_rresp),
         .hp0_rready   (dma_rready),
 
-        // HP1 write — not exposed to NPU top-level this pass.
-        .hp1_awaddr   (),
-        .hp1_awvalid  (),
-        .hp1_awlen    (),
-        .hp1_awsize   (),
-        .hp1_awburst  (),
-        .hp1_awcache  (),
-        .hp1_awready  (1'b0),
-        .hp1_wdata    (),
-        .hp1_wstrb    (),
-        .hp1_wlast    (),
-        .hp1_wvalid   (),
-        .hp1_wready   (1'b0),
-        .hp1_bresp    (2'b00),
-        .hp1_bvalid   (1'b0),
-        .hp1_bready   (),
+        // HP2 write — DMA_STORE master (driven Phase 5; ports wired now).
+        .hp2_awaddr   (st_awaddr),
+        .hp2_awvalid  (st_awvalid),
+        .hp2_awlen    (st_awlen),
+        .hp2_awsize   (st_awsize),
+        .hp2_awburst  (st_awburst),
+        .hp2_awcache  (st_awcache),
+        .hp2_awready  (st_awready),
+        .hp2_wdata    (st_wdata),
+        .hp2_wstrb    (st_wstrb),
+        .hp2_wlast    (st_wlast),
+        .hp2_wvalid   (st_wvalid),
+        .hp2_wready   (st_wready),
+        .hp2_bresp    (st_bresp),
+        .hp2_bvalid   (st_bvalid),
+        .hp2_bready   (st_bready),
 
-        // SRAM ports — open until SRAMHub instantiated (Phase 2).
-        .sram_waddr   (),
-        .sram_wdata   (),
-        .sram_wen     (),
+        // HP1 read — WT_LOAD master (driven Phase 4; ports wired now).
+        .hp1_araddr   (wt_araddr),
+        .hp1_arvalid  (wt_arvalid),
+        .hp1_arlen    (wt_arlen),
+        .hp1_arsize   (wt_arsize),
+        .hp1_arburst  (wt_arburst),
+        .hp1_arcache  (wt_arcache),
+        .hp1_arready  (wt_arready),
+        .hp1_rdata    (wt_rdata),
+        .hp1_rvalid   (wt_rvalid),
+        .hp1_rlast    (wt_rlast),
+        .hp1_rresp    (wt_rresp),
+        .hp1_rready   (wt_rready),
+
+        // SRAM write port → SRAMHub Act bank (Phase 3). Read port open until
+        // Phase 5 (DMA_STORE wires it to SRAMHub Output bank).
+        .sram_waddr   (dma_sram_waddr_w),
+        .sram_wdata   (dma_sram_wdata_w),
+        .sram_wen     (dma_sram_wen_w),
         .sram_raddr   (),
         .sram_rdata   (128'h0),
 
-        .dma_err      (dma_err_w)
+        // Wt SRAM write port → SRAMHub Weight bank (Phase 4).
+        .sram_wt_waddr (dma_sram_wt_waddr_w),
+        .sram_wt_wdata (dma_sram_wt_wdata_w),
+        .sram_wt_wen   (dma_sram_wt_wen_w),
+
+        .dma_err      (dma_err_w),
+
+        // Dep-FIFO: push owned by DMA (producer), pop owned by Dispatch_DMA
+        // (consumer; Phase 2). DMA's pop outputs are tied 0 internally and
+        // left unconnected to avoid multi-driver on sa_to_dma_pop / vpu_to_dma_pop.
+        .dep_sa_to_dma_empty  (sa_to_dma_empty),
+        .dep_sa_to_dma_pop    (),
+        .dep_vpu_to_dma_empty (vpu_to_dma_empty),
+        .dep_vpu_to_dma_pop   (),
+        .dep_dma_to_sa_full   (dma_to_sa_full),
+        .dep_dma_to_sa_push   (dma_to_sa_push),
+        .dep_dma_to_vpu_full  (dma_to_vpu_full),
+        .dep_dma_to_vpu_push  (dma_to_vpu_push)
     );
 
 // =============================================================================
@@ -339,28 +600,26 @@ module NPU (
     assign out_wdata_mux_w = vpu_vpu_out_wen_w ? vpu_vpu_out_wdata_w
                                                : req_vpu_out_wdata_w;
 
-    // DMA-side bank-full sticky flags — DMA stub never asserts them, so the
-    // PingPongBuffer stays on bank A and Dispatch_SA reads bank A forever.
-    // Acceptable for elaboration / single-tile bring-up; revisit when DMA
-    // datapath comes up.
+    // Act-bank ping-pong now driven by DMA (Phase 3); other DMA-side ports
+    // (Wt, Out, Coeff, LUT) come up in Phases 4–6.
     SRAMHub SRAM_hub (
         .clk               (clk),
         .rst               (rst),
 
-        // Activation ping-pong
-        .dma_act_waddr     ('0),
-        .dma_act_wdata     (128'h0),
-        .dma_act_wen       (1'b0),
-        .dma_act_bank_full (1'b0),
+        // Activation ping-pong — DMA Act write (truncate addr to bank width)
+        .dma_act_waddr     (dma_sram_waddr_w[$clog2(ACT_BUF_DEPTH)-1:0]),
+        .dma_act_wdata     (dma_sram_wdata_w),
+        .dma_act_wen       (dma_sram_wen_w),
+        .dma_act_bank_full (dma_act_bank_full_w),
         .sa_act_raddr      (sa_act_raddr_w),
         .sa_act_rdata      (sa_act_rdata_w),
         .sa_act_bank_read  (sa_act_bank_read_w),
 
-        // Weight ping-pong
-        .dma_wt_waddr      ('0),
-        .dma_wt_wdata      (128'h0),
-        .dma_wt_wen        (1'b0),
-        .dma_wt_bank_full  (1'b0),
+        // Weight ping-pong — driven by DMA Ch1 (Phase 4)
+        .dma_wt_waddr      (dma_sram_wt_waddr_w),
+        .dma_wt_wdata      (dma_sram_wt_wdata_w),
+        .dma_wt_wen        (dma_sram_wt_wen_w),
+        .dma_wt_bank_full  (dma_wt_bank_full_w),
         .sa_wt_raddr       (sa_wt_raddr_w),
         .sa_wt_rdata       (sa_wt_rdata_w),
         .sa_wt_bank_read   (sa_wt_bank_read_w),
@@ -402,226 +661,121 @@ module NPU (
 
 
 // =============================================================================
-// Systolic Array block — instr FIFO, dispatch, and 16x16 SA datapath.
+// Systolic Array block — encapsulated in SA_Block wrapper. Owns its instr
+// FIFO, Dispatch_SA, packed/unpacked conversion, and SA_top datapath.
 // =============================================================================
 
-    logic [123:0] sa_dout;
-    logic         sa_empty, sa_rd_en;
-    logic         sa_start_w;
-    logic         sa_done_w;
-    logic         sa_busy_w;
-    logic         sa_load_done_w;
+    logic signed [ACCUM_WIDTH-1:0] sa_row_out_w [SA_COLS-1:0];
+    logic                          sa_row_valid_w;
 
-    // 128-bit packed bank rdata -> unpacked INT8[16] arrays for SA_top.
-    logic signed [ACT_WIDTH-1:0] weightInputRow    [SA_COLS-1:0];
-    logic signed [ACT_WIDTH-1:0] activationInputCol[SA_ROWS-1:0];
-    logic signed [ACCUM_WIDTH-1:0] MatrixMulOut    [SA_COLS-1:0];
+    SA_Block u_sa_block (
+        .clk                  (clk),
+        .rst                  (rst),
 
-    genvar gi;
-    generate
-        for (gi = 0; gi < SA_COLS; gi = gi + 1) begin : gen_wt_unpack
-            assign weightInputRow[gi] =
-                sa_wt_rdata_w[gi*ACT_WIDTH +: ACT_WIDTH];
-        end
-        for (gi = 0; gi < SA_ROWS; gi = gi + 1) begin : gen_act_unpack
-            assign activationInputCol[gi] =
-                sa_act_rdata_w[gi*ACT_WIDTH +: ACT_WIDTH];
-        end
-    endgenerate
+        .disp_payload         (disp_payload),
+        .disp_push            (disp_push[1]),
+        .disp_full            (disp_full[1]),
+        .unit_done            (sa_done_pulse),
 
-    FIFO #(
-        .USE_XILINX_XPM (FIFO_USE_XPM),
-        .DATA_WIDTH     (124),
-        .DEPTH          (32)
-    ) SA_instr_fifo (
-        .clk    (clk),
-        .rst    (rst),
-        .wr_en  (disp_push[1]),
-        .rd_en  (sa_rd_en),
-        .din    (disp_payload),
-        .dout   (sa_dout),
-        .full   (disp_full[1]),
-        .empty  (sa_empty)
-    );
+        .cfg_tile_K           (cfg_tile_K),
 
-    Dispatch_SA u_dispatch_sa (
-        .clk              (clk),
-        .rst              (rst),
-        .fifo_dout        (sa_dout),
-        .fifo_empty       (sa_empty),
-        .fifo_rd_en       (sa_rd_en),
-        .sa_done          (sa_done_w),
-        .cfg_tile_K       (cfg_tile_K),
-        .sa_start         (sa_start_w),
-        .sa_act_raddr     (sa_act_raddr_w),
-        .sa_wt_raddr      (sa_wt_raddr_w),
-        .sa_act_bank_read (sa_act_bank_read_w),
-        .sa_wt_bank_read  (sa_wt_bank_read_w),
-        .unit_done        (sa_done_pulse)
-    );
+        .sa_act_raddr         (sa_act_raddr_w),
+        .sa_act_rdata         (sa_act_rdata_w),
+        .sa_act_bank_read     (sa_act_bank_read_w),
+        .sa_wt_raddr          (sa_wt_raddr_w),
+        .sa_wt_rdata          (sa_wt_rdata_w),
+        .sa_wt_bank_read      (sa_wt_bank_read_w),
 
-    SA_top #(
-        .FORMAT_BITWIDTH      (ACT_WIDTH),
-        .ACCUMULATOR_BITWIDTH (ACCUM_WIDTH),
-        .ARRAY_HEIGHT         (SA_ROWS),
-        .ARRAY_LENGTH         (SA_COLS),
-        .K_DIM                (SA_ROWS)
-    ) Systolic_array (
-        .clk                (clk),
-        .rst                (rst),
-        .start              (sa_start_w),
-        .weightInputRow     (weightInputRow),
-        .activationInputCol (activationInputCol),
-        .MatrixMulOut       (MatrixMulOut),
-        .load_done          (sa_load_done_w),
-        .done               (sa_done_w),
-        .busy               (sa_busy_w)
+        .sa_row_out           (sa_row_out_w),
+        .sa_row_valid         (sa_row_valid_w),
+
+        .dep_dma_to_sa_empty  (dma_to_sa_empty),
+        .dep_dma_to_sa_pop    (dma_to_sa_pop),
+        .dep_psb_to_sa_empty  (psb_to_sa_empty),
+        .dep_psb_to_sa_pop    (psb_to_sa_pop),
+
+        .dep_sa_to_dma_full   (sa_to_dma_full),
+        .dep_sa_to_dma_push   (sa_to_dma_push),
+        .dep_sa_to_psb_full   (sa_to_psb_full),
+        .dep_sa_to_psb_push   (sa_to_psb_push)
     );
 
 
 // =============================================================================
-// PSB block — instr FIFO, dispatch, and 16x16 INT32 partial-sum buffer.
+// PSB block — encapsulated in PSB_Block wrapper. Owns its instr FIFO,
+// Dispatch_PSB, and the partial-sum accumulator.
 // =============================================================================
 
-    logic [123:0] psb_dout;
-    logic         psb_empty, psb_rd_en;
-    logic         psb_acc_w, psb_flush_w, psb_row_valid_w;
-    logic         psb_acc_done_w, psb_flush_done_w;
-    logic         psb_busy_w;
+    logic [SA_COLS*ACCUM_WIDTH-1:0] requant_row_out_w;
+    logic [$clog2(SA_ROWS)-1:0]     psb_row_index_w;
+    logic                           psb_row_out_valid_w;
 
-    // Phase 4 will consume these; surfaced here for clarity.
-    logic [SA_COLS*ACCUM_WIDTH-1:0]   requant_row_out_w;
-    logic [$clog2(SA_ROWS)-1:0]       psb_row_index_w;
-    logic                             psb_row_out_valid_w;
+    PSB_Block u_psb_block (
+        .clk                  (clk),
+        .rst                  (rst),
 
-    FIFO #(
-        .USE_XILINX_XPM (FIFO_USE_XPM),
-        .DATA_WIDTH     (124),
-        .DEPTH          (32)
-    ) PSB_instr_fifo (
-        .clk    (clk),
-        .rst    (rst),
-        .wr_en  (disp_push[2]),
-        .rd_en  (psb_rd_en),
-        .din    (disp_payload),
-        .dout   (psb_dout),
-        .full   (disp_full[2]),
-        .empty  (psb_empty)
-    );
+        .disp_payload         (disp_payload),
+        .disp_push            (disp_push[2]),
+        .disp_full            (disp_full[2]),
+        .unit_done            (psb_done_pulse),
 
-    Dispatch_PSB u_dispatch_psb (
-        .clk            (clk),
-        .rst            (rst),
-        .fifo_dout      (psb_dout),
-        .fifo_empty     (psb_empty),
-        .fifo_rd_en     (psb_rd_en),
-        .psb_busy       (psb_busy_w),
-        .psb_acc_done   (psb_acc_done_w),
-        .psb_flush_done (psb_flush_done_w),
-        .psb_acc        (psb_acc_w),
-        .psb_flush      (psb_flush_w),
-        .row_valid      (psb_row_valid_w),
-        .unit_done      (psb_done_pulse)
-    );
+        .sa_row_in            (sa_row_out_w),
+        .sa_row_valid         (sa_row_valid_w),
 
-    psb #(
-        .ACCUMULATOR_BITWIDTH (ACCUM_WIDTH),
-        .ARRAY_HEIGHT         (SA_ROWS),
-        .ARRAY_LENGTH         (SA_COLS)
-    ) partial_sum_buffer (
-        .clk             (clk),
-        .rst             (rst),
-        .psb_acc         (psb_acc_w),
-        .psb_flush       (psb_flush_w),
-        .row_valid       (psb_row_valid_w),
-        .sa_row_in       (MatrixMulOut),
-        .requant_row_out (requant_row_out_w),
-        .row_index_out   (psb_row_index_w),
-        .row_out_valid   (psb_row_out_valid_w),
-        .acc_done        (psb_acc_done_w),
-        .flush_done      (psb_flush_done_w),
-        .busy            (psb_busy_w)
+        .requant_row_out      (requant_row_out_w),
+        .row_index_out        (psb_row_index_w),
+        .row_out_valid        (psb_row_out_valid_w),
+
+        .dep_sa_to_psb_empty  (sa_to_psb_empty),
+        .dep_sa_to_psb_pop    (sa_to_psb_pop),
+        .dep_req_to_psb_empty (req_to_psb_empty),
+        .dep_req_to_psb_pop   (req_to_psb_pop),
+
+        .dep_psb_to_sa_full   (psb_to_sa_full),
+        .dep_psb_to_sa_push   (psb_to_sa_push),
+        .dep_psb_to_req_full  (psb_to_req_full),
+        .dep_psb_to_req_push  (psb_to_req_push)
     );
 
 
 // =============================================================================
-// Requant block — instr FIFO, dispatch, and INT32→INT8 requant pipeline.
+// Requant block — encapsulated in Requant_Block wrapper. Owns its instr FIFO,
+// Dispatch_REQ, coeff handling, and RequantPipeline datapath.
 // =============================================================================
 
-    localparam int ReqLanes      = 64;
-    localparam int ReqChCount    = 4;
-    localparam int ReqM0Width    = COEFF_M_WIDTH;
-    localparam int ReqShiftWidth = 8;
+    Requant_Block #(
+        .Lanes      (64),
+        .ChCount    (4),
+        .M0Width    (COEFF_M_WIDTH),
+        .ShiftWidth (8)
+    ) u_requant_block (
+        .clk                  (clk),
+        .rst                  (rst),
 
-    logic [123:0]                          req_dout;
-    logic                                  req_empty, req_rd_en;
-    logic [1:0]                            req_mode_w;
-    logic [ReqChCount*ReqM0Width-1:0]      req_m0_a_w;
-    logic [ReqChCount*ReqShiftWidth-1:0]   req_n_a_w;
-    logic [ReqChCount*32-1:0]              req_bias_w;
-    logic [ReqLanes*8-1:0]                 req_data_o_w;
-    logic                                  req_valid_o_w;
+        .disp_payload         (disp_payload),
+        .disp_push            (disp_push[3]),
+        .disp_full            (disp_full[3]),
+        .unit_done            (req_done_pulse),
 
-    FIFO #(
-        .USE_XILINX_XPM (FIFO_USE_XPM),
-        .DATA_WIDTH     (124),
-        .DEPTH          (8)
-    ) REQUANT_instr_fifo (
-        .clk    (clk),
-        .rst    (rst),
-        .wr_en  (disp_push[3]),
-        .rd_en  (req_rd_en),
-        .din    (disp_payload),
-        .dout   (req_dout),
-        .full   (disp_full[3]),
-        .empty  (req_empty)
-    );
+        .psb_row_in           (requant_row_out_w),
+        .psb_row_valid        (psb_row_out_valid_w),
 
-    Dispatch_REQ #(
-        .ChCount    (ReqChCount),
-        .M0Width    (ReqM0Width),
-        .ShiftWidth (ReqShiftWidth)
-    ) u_dispatch_req (
-        .clk             (clk),
-        .rst             (rst),
-        .fifo_dout       (req_dout),
-        .fifo_empty      (req_empty),
-        .fifo_rd_en      (req_rd_en),
-        .req_valid_o     (req_valid_o_w),
-        .req_data_o_lo   (req_data_o_w[127:0]),
-        .req_coeff_rdata (req_coeff_rdata_w),
-        .req_mode        (req_mode_w),
-        .req_coeff_raddr (req_coeff_raddr_w),
-        .req_m0_a        (req_m0_a_w),
-        .req_n_a         (req_n_a_w),
-        .req_bias        (req_bias_w),
-        .vpu_out_waddr   (req_vpu_out_waddr_w),
-        .vpu_out_wdata   (req_vpu_out_wdata_w),
-        .vpu_out_wen     (req_vpu_out_wen_w),
-        .unit_done       (req_done_pulse)
-    );
+        .coeff_raddr          (req_coeff_raddr_w),
+        .coeff_rdata          (req_coeff_rdata_w),
 
-    RequantPipeline #(
-        .Lanes      (ReqLanes),
-        .ChCount    (ReqChCount),
-        .M0Width    (ReqM0Width),
-        .ShiftWidth (ReqShiftWidth)
-    ) requantization_pipeline (
-        .clk             (clk),
-        .rst             (rst),
-        .mode_i          (req_mode_w),
-        .psb_row_i       (requant_row_out_w),
-        .psb_row_valid_i (psb_row_out_valid_w),
-        .sram_a_i        ('0),
-        .sram_a_valid_i  (1'b0),
-        .sram_b_i        ('0),
-        .bias_i          (req_bias_w),
-        .m0_a_i          (req_m0_a_w),
-        .n_a_i           (req_n_a_w),
-        .m0_b_i          ('0),
-        .n_b_i           ('0),
-        .data_o          (req_data_o_w),
-        .valid_o         (req_valid_o_w)
+        .out_waddr            (req_vpu_out_waddr_w),
+        .out_wdata            (req_vpu_out_wdata_w),
+        .out_wen              (req_vpu_out_wen_w),
+
+        .dep_psb_to_req_empty (psb_to_req_empty),
+        .dep_psb_to_req_pop   (psb_to_req_pop),
+        .dep_vpu_to_req_empty (vpu_to_req_empty),
+        .dep_vpu_to_req_pop   (vpu_to_req_pop),
+
+        .dep_req_to_psb_full  (req_to_psb_full),
+        .dep_req_to_psb_push  (req_to_psb_push),
+        .dep_req_to_vpu_full  (req_to_vpu_full),
+        .dep_req_to_vpu_push  (req_to_vpu_push)
     );
 
 
@@ -631,77 +785,42 @@ module NPU (
 // lanes — bumping requires multi-word SRAM gather/scatter; deferred.
 // =============================================================================
 
-    localparam int VpuLanesPhase5 = 16;
+    VPU_Block #(
+        .Lanes (16)
+    ) u_vpu_block (
+        .clk                  (clk),
+        .rst                  (rst),
 
-    logic [123:0]                    vpu_dout;
-    logic                            vpu_empty, vpu_rd_en;
-    logic                            vpu_enable_w;
-    logic [7:0]                      vpu_opcode_w;
-    logic                            vpu_reduce_max_w;
-    logic                            vpu_valid_opcode_w;
-    logic [VpuLanesPhase5*8-1:0]     vpu_in_a_w;
-    logic [VpuLanesPhase5*8-1:0]     vpu_in_b_w;
-    logic [VpuLanesPhase5*8-1:0]     vpu_out_w_bus;
-    logic                            lut_bypass_en_w;
+        .disp_payload         (disp_payload),
+        .disp_push            (disp_push[4]),
+        .disp_full            (disp_full[4]),
+        .unit_done            (vpu_done_pulse),
 
-    FIFO #(
-        .USE_XILINX_XPM (FIFO_USE_XPM),
-        .DATA_WIDTH     (124),
-        .DEPTH          (16)
-    ) VPU_instr_fifo (
-        .clk    (clk),
-        .rst    (rst),
-        .wr_en  (disp_push[4]),
-        .rd_en  (vpu_rd_en),
-        .din    (disp_payload),
-        .dout   (vpu_dout),
-        .full   (disp_full[4]),
-        .empty  (vpu_empty)
-    );
+        .cfg_tile_M           (cfg_tile_M),
+        .cfg_tile_N           (cfg_tile_N),
 
-    Dispatch_VPU #(
-        .Lanes (VpuLanesPhase5)
-    ) u_dispatch_vpu (
-        .clk              (clk),
-        .rst              (rst),
-        .fifo_dout        (vpu_dout),
-        .fifo_empty       (vpu_empty),
-        .fifo_rd_en       (vpu_rd_en),
-        .vpu_valid_opcode (vpu_valid_opcode_w),
-        .vpu_out          (vpu_out_w_bus),
-        .vpu_hred_rdata   (vpu_hred_rdata_w),
-        .vpu_res_rdata    (vpu_res_rdata_w),
-        .cfg_tile_M       (cfg_tile_M),
-        .cfg_tile_N       (cfg_tile_N),
-        .vpu_enable       (vpu_enable_w),
-        .vpu_opcode       (vpu_opcode_w),
-        .vpu_reduce_max   (vpu_reduce_max_w),
-        .vpu_in_a         (vpu_in_a_w),
-        .vpu_in_b         (vpu_in_b_w),
-        .vpu_hred_raddr   (vpu_hred_raddr_w),
-        .vpu_res_raddr    (vpu_res_raddr_w),
-        .out_rd_sel       (vpu_out_rd_sel_w),
-        .vpu_out_waddr    (vpu_vpu_out_waddr_w),
-        .vpu_out_wdata    (vpu_vpu_out_wdata_w),
-        .vpu_out_wen      (vpu_vpu_out_wen_w),
-        .lut_bypass_en    (lut_bypass_en_w),
-        .vpu_lut_sel      (vpu_lut_sel_w),
-        .unit_done        (vpu_done_pulse)
-    );
+        .hred_raddr           (vpu_hred_raddr_w),
+        .hred_rdata           (vpu_hred_rdata_w),
+        .out_rd_sel           (vpu_out_rd_sel_w),
 
-    vpu #(
-        .LANES (VpuLanesPhase5)
-    ) vector_processing_unit (
-        .clk          (clk),
-        .rst          (rst),
-        .enable       (vpu_enable_w),
-        .opcode       (vpu_opcode_w),
-        .reduce_max   (vpu_reduce_max_w),
-        .in_a         (vpu_in_a_w),
-        .in_b         (vpu_in_b_w),
-        .data_h_edge  (8'h0),
-        .out          (vpu_out_w_bus),
-        .valid_opcode (vpu_valid_opcode_w)
+        .res_raddr            (vpu_res_raddr_w),
+        .res_rdata            (vpu_res_rdata_w),
+
+        .lut_sel              (vpu_lut_sel_w),
+
+        .out_waddr            (vpu_vpu_out_waddr_w),
+        .out_wdata            (vpu_vpu_out_wdata_w),
+        .out_wen              (vpu_vpu_out_wen_w),
+
+        .dep_req_to_vpu_empty (req_to_vpu_empty),
+        .dep_req_to_vpu_pop   (req_to_vpu_pop),
+        .dep_dma_to_vpu_empty (dma_to_vpu_empty),
+        .dep_dma_to_vpu_pop   (dma_to_vpu_pop),
+
+        .dep_vpu_to_req_full  (vpu_to_req_full),
+        .dep_vpu_to_req_push  (vpu_to_req_push),
+        .dep_vpu_to_dma_full  (vpu_to_dma_full),
+        .dep_vpu_to_dma_push  (vpu_to_dma_push)
     );
 
 endmodule
