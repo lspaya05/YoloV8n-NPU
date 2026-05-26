@@ -42,4 +42,12 @@ package NPU_HW_params_pkg;
     localparam int RES_BANK_DEPTH = 1024;  // residual (skip-tensor) bank
     localparam int OUT_BANK_DEPTH = 512;   // output bank (VPU -> DMA_STORE)
 
+    // -------------------------------------------------------------------------
+    // FIFO build mode — toggles all NPU instruction FIFOs between Xilinx XPM
+    // macros (synthesis on KR260) and a behavioral simulation model.
+    //   1 = xpm_fifo_sync (Vivado synth target)
+    //   0 = behavioral SV model (Questa / xsim quick turn)
+    // -------------------------------------------------------------------------
+    localparam bit FIFO_USE_XPM = 1'b0;
+
 endpackage : NPU_HW_params_pkg

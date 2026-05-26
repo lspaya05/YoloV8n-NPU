@@ -35,7 +35,7 @@
 //     - m_axi_arsize: AXI4 beat size (fixed 3'b010 = 32-bit)
 //     - m_axi_arburst: AXI4 burst type (fixed 2'b01 = INCR)
 //     - m_axi_rready: AXI4 R ready; asserted only while FSM is in S_R state
-//     - fifo_payload: 116-bit dispatch word {dep_flags[3:0], payload[111:0]}
+//     - fifo_payload: 124-bit dispatch word {opcode[7:0], dep_flags[3:0], payload[111:0]}
 //     - fifo_push: One-hot 1-cycle strobe selecting target per-unit FIFO
 //     - cfg_tile_M: Tile M dimension latched from last OP_CONFIG instruction
 //     - cfg_tile_N: Tile N dimension latched from last OP_CONFIG instruction
@@ -96,7 +96,7 @@ module Sequencer #(
     output logic        m_axi_rready,
 
     // Dispatch
-    output logic [115:0] fifo_payload,
+    output logic [123:0] fifo_payload,
     output logic [5:0]   fifo_push,
     input  logic [5:0]   fifo_full,
 
@@ -338,7 +338,7 @@ module Sequencer #(
                         default: begin
                             // All unit instructions — global stall if target FIFO full
                             if (!dispatch_stall) begin
-                                fifo_payload    <= {dec_dep, dec_payload};
+                                fifo_payload    <= {dec_opcode, dec_dep, dec_payload};
                                 fifo_push       <= target_bit;
                                 fetch_ptr       <= fetch_ptr + 44'd16;
                                 fetch_remaining <= fetch_remaining - 1'b1;
