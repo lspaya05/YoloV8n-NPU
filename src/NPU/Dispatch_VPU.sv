@@ -228,8 +228,8 @@ module Dispatch_VPU #(
                 // Drive SRAM raddr; capture rdata next cycle into vpu inputs.
                 S_READ: begin
                     out_rd_sel     <= 1'b1;
-                    vpu_hred_raddr <= word_idx[$clog2(OUT_BANK_DEPTH)-1:0];
-                    vpu_res_raddr  <= word_idx[$clog2(RES_BANK_DEPTH)-1:0];
+                    vpu_hred_raddr <= $clog2(OUT_BANK_DEPTH)'(word_idx);
+                    vpu_res_raddr  <= $clog2(RES_BANK_DEPTH)'(word_idx);
                     state          <= S_COMPUTE;
                 end
 
@@ -245,7 +245,7 @@ module Dispatch_VPU #(
                 // vpu.out reflects the new value; store it.
                 S_WRITE: begin
                     vpu_out_wdata <= vpu_out;
-                    vpu_out_waddr <= word_idx[$clog2(OUT_BANK_DEPTH)-1:0];
+                    vpu_out_waddr <= $clog2(OUT_BANK_DEPTH)'(word_idx);
                     vpu_out_wen   <= 1'b1;
                     word_idx      <= word_idx + 8'h1;
                     if ((word_idx + 8'h1) == target_count) begin
