@@ -19,7 +19,7 @@
 - **Six instr FIFOs (not five):** Sequencer routes two DMA slots — Ch0 (DMA_LOAD/STORE/UPSAMPLE/CONCAT/COEFF_LOAD, bit0) and Ch1 (WT_LOAD, bit5). Other slots: SA bit1, PSB bit2, REQ bit3, VPU bit4.
 - **Instr-FIFO depths (v2.1 spec):** DMA_Ch0=16, DMA_Ch1=16, SA=32, PSB=32, REQ=8, VPU=16. All DATA_WIDTH=124.
 - **NPU.sv organization:** one block per pipeline stage in v2.1 dataflow order — Sequencer → DMA → SRAMHub → SA → PSB → Requant → VPU. Each block contains its own nets, FIFO(s), Dispatch, and datapath module.
-- **VPU LANES:** parameterized to `NPU_HW_params_pkg::VPU_LANES` (=64). Flag any internal hardcoding in vpu.sv during Phase 5.
+- **VPU LANES:** parameterized to `NPU_HW_params_pkg::VPU_LANES` (=16 per 2026-05-26 amendment; see notes/Architecture-FINAL/NPUArchitectureV2_1.md).
 - **Verification:** none in this plan — pure RTL build out. TB phases follow later.
 
 ## Inventory (port-list verified)
@@ -28,7 +28,7 @@
 - SRAMHub: Act/Wt/Res/Out/Coeff/LUT bank R+W ports.
 - SA_top: unpacked `weightInputRow[16]`, `activationInputCol[16]`, `MatrixMulOut[16]` INT32.
 - psb: unpacked `sa_row_in[16]`, packed 512-bit `requant_row_out`.
-- RequantPipeline: 16x32 packed psb_row_i, Lanes=64 sram_a/b paths.
+- RequantPipeline: 16x32 packed psb_row_i, Lanes=16 sram_a/b paths (post-2026-05-26 narrowing).
 - vpu: parameterized LANES; opcode-driven.
 - FIFO: generic (USE_XILINX_XPM, DATA_WIDTH, DEPTH).
 
@@ -107,7 +107,7 @@ Tasks:
      - SA path: `mode_i = 2'b00` (PSB row source), only `psb_row_i` + `m0_a_i` + `n_a_i` + `bias_i` active.
    - Walk SRAMHub `req_coeff_raddr` for `ch_count` channels; pack `req_coeff_rdata` into `m0_a_i` / `n_a_i` / `bias_i` windows feeding RequantPipeline.
    - Track `valid_o` beats; on count == ch_count pulse the dispatch's `unit_done` (already plumbed into `req_done_pulse` -> `units_done[UNIT_REQ]`).
-2. Instantiate `RequantPipeline requantization_pipeline` inside the Requant block with Lanes=64, ChCount=4.
+2. Instantiate `RequantPipeline requantization_pipeline` inside the Requant block with Lanes=16, ChCount=1 (2026-05-26 amendment).
    - Split `requant_row_out[511:0]` -> `psb_row_i[16][32]`.
    - Set `psb_row_valid_i = row_out_valid`.
    - Route `data_o` (INT8 byte lanes) into SRAMHub `vpu_out_w*` write ports (driven via a small writer FSM inside Dispatch_REQ; OK because VPU not yet writing this bank).
@@ -128,8 +128,8 @@ Tasks:
    - LUT_LOAD: route VPU instr to SRAMHub `dma_lut_w*` (one-shot 256-byte copy from a known source — placeholder until DMA is real; for now leave the write ports inactive and just consume the instruction).
    - LUT_BYPASS: latch `bypass_en` into a top-level reg consumed by `vpu_lut_sel`.
    - Pulse the dispatch's `unit_done` (already plumbed into `vpu_done_pulse` -> `units_done[UNIT_VPU]`) on opcode-specific completion (counter == lane sweep length).
-2. Instantiate `vpu vector_processing_unit` inside the VPU block with `LANES = NPU_HW_params_pkg::VPU_LANES` (=64).
-   - Bus `vpu_out_rdata[127:0]` -> `in_a[64*8-1:0]` by replicating across two reads or extending to 512-bit interface (review during impl; flag if vpu.sv has internal LANES hardcodes).
+2. Instantiate `vpu vector_processing_unit` inside the VPU block with `LANES = NPU_HW_params_pkg::VPU_LANES` (=16 per 2026-05-26 amendment).
+   - Bus `vpu_out_rdata[127:0]` -> `in_a[16*8-1:0]` directly; no replication needed.
 3. Replace the Phase 1 placeholder `assign vpu_valid_opcode_w = 1'b0;` with the real `vpu.valid_opcode`.
 
 End of plan: NPU.sv contains Sequencer + 6 instr FIFOs + 5 Dispatch modules + SRAMHub + SA + PSB + Requant + VPU + DMA shell, all interconnected. DMA payload path and DepFIFOs deferred to follow-on work.
@@ -151,7 +151,7 @@ End of plan: NPU.sv contains Sequencer + 6 instr FIFOs + 5 Dispatch modules + SR
 | SRAMHub | bank-side nets, Output-Bank writer mux, SRAMHub instance | functional |
 | SA | SA FIFO, Dispatch_SA, SA_top + packed↔unpacked conversion | functional |
 | PSB | PSB FIFO, Dispatch_PSB, psb instance | functional |
-| Requant | REQUANT FIFO, Dispatch_REQ, RequantPipeline (Lanes=64) | functional |
+| Requant | REQUANT FIFO, Dispatch_REQ, RequantPipeline (Lanes=16) | functional |
 | VPU | VPU FIFO, Dispatch_VPU, vpu instance (LANES=16) | functional |
 
 **Sanity findings:**

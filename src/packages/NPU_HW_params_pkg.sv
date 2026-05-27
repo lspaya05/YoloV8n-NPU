@@ -32,7 +32,9 @@ package NPU_HW_params_pkg;
     // -------------------------------------------------------------------------
     // VPU
     // -------------------------------------------------------------------------
-    localparam int VPU_LANES = 64;   // vector processing lanes
+    // 16-lane Requant and VPU convergence: matches 128-bit Output Bank word.
+    // See notes/Architecture-FINAL/NPUArchitectureV2_1.md amendment.
+    localparam int VPU_LANES = 16;   // vector processing lanes
 
     // -------------------------------------------------------------------------
     // SRAM Hub bank depths

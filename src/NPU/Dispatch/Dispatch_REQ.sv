@@ -1,11 +1,12 @@
 // Name: Leonard Paya, Bernardo Lin
-// Date: 2026-05-25
+// Date: 2026-05-26
 // Requant-pipeline dispatch. On OP_REQUANT:
 //   1. Read ChCount per-channel (M0, n) pairs from SRAMHub.coeff BRAM into
-//      shadow registers feeding RequantPipeline.{m0_a_i, n_a_i}.
+//      shadow registers feeding RequantPipeline.{m0_a_i, n_a_i}. Default
+//      ChCount = 1: one coeff per REQUANT op drives all 16 lanes.
 //   2. Drive mode_i = 2'b01 (FROM_PSB) and hold it until ch_count output beats
 //      have streamed through RequantPipeline.valid_o.
-//   3. Each valid_o beat writes the lower 128 bits of data_o (16 INT8 lanes,
+//   3. Each valid_o beat writes the full 128-bit data_o (16 INT8 lanes,
 //      matching one PSB row) into SRAMHub.vpu_out_w*.
 //   4. After ch_count beats, pulse unit_done back to the Sequencer.
 // psb_row_valid_i is driven externally by psb.row_out_valid during a parallel
@@ -15,7 +16,7 @@
 //     - fifo_dout: 124-bit {opcode, dep_flags, payload} from REQUANT instr FIFO
 //     - fifo_empty: REQUANT instr FIFO empty flag
 //     - req_valid_o: RequantPipeline.valid_o (beat retire)
-//     - req_data_o_lo: lower 128 bits of RequantPipeline.data_o (16 INT8 lanes)
+//     - req_data_o: 128-bit RequantPipeline.data_o (16 INT8 lanes)
 //     - req_coeff_rdata: 36-bit {M[31:0], S[3:0]} from SRAMHub coeff BRAM
 // Outputs:
 //     - fifo_rd_en: Pop strobe for REQUANT instr FIFO
@@ -33,7 +34,7 @@ import NPU_HW_params_pkg::*;
 import NPU_ISA_pkg::*;
 
 module Dispatch_REQ #(
-    parameter int ChCount    = 4,
+    parameter int ChCount    = 1,
     parameter int M0Width    = 32,
     parameter int ShiftWidth = 8
 )(
@@ -45,7 +46,7 @@ module Dispatch_REQ #(
     output logic                                fifo_rd_en,
 
     input  logic                                req_valid_o,
-    input  logic [127:0]                        req_data_o_lo,
+    input  logic [127:0]                        req_data_o,
     input  logic [COEFF_M_WIDTH+COEFF_S_WIDTH-1:0] req_coeff_rdata,
 
     output logic [1:0]                          req_mode,
@@ -152,7 +153,7 @@ module Dispatch_REQ #(
                 S_RUN: begin
                     req_mode <= 2'b01;  // hold FROM_PSB
                     if (req_valid_o) begin
-                        vpu_out_wdata <= req_data_o_lo;
+                        vpu_out_wdata <= req_data_o;
                         state         <= S_WRITE;
                     end
                 end

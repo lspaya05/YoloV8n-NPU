@@ -790,8 +790,8 @@ module NPU (
 // =============================================================================
 
     Requant_Block #(
-        .Lanes      (64),
-        .ChCount    (4),
+        .Lanes      (16),
+        .ChCount    (1),
         .M0Width    (COEFF_M_WIDTH),
         .ShiftWidth (8)
     ) u_requant_block (
@@ -827,8 +827,9 @@ module NPU (
 
 // =============================================================================
 // VPU block — instr FIFO, dispatch, and vector processing unit.
-// LANES kept at 16 (matches Output Bank 128-bit word). v2.1 spec targets 64
-// lanes — bumping requires multi-word SRAM gather/scatter; deferred.
+// LANES = 16 to match Requant output and the 128-bit Output Bank word. See
+// notes/Architecture-FINAL/NPUArchitectureV2_1.md amendment for the v2.1
+// 64-lane reduction rationale.
 // =============================================================================
 
     VPU_Block #(

@@ -11,6 +11,9 @@ The NPU runs on the KR260 PL (FPGA fabric) and is controlled by the ARM Cortex-A
 
 **Key changes from v2.0:** Sequencer stall policy formalized — global stall on current-target-FIFO-full (see §14).
 
+> **Implementation Amendment — 2026-05-26: Requant + VPU narrowed to 16 lanes.**
+> Lines below referring to "64-Lane VPU" / "all 64 lanes" / "Lanes=64" reflect the v2.1 spec target. The current RTL implementation reduces both `RequantPipeline` and `vpu` to **16 lanes** to match the 128-bit Output Bank word and avoid the multi-word SRAM gather/scatter (deferred). Rationale: prior wiring (`Lanes=64` Requant feeding a 128-bit OB writer) silently dropped 75% of every Requant beat in `Requant_Block.sv`. Narrowing converges the datapath at 16 lanes end-to-end (Requant → OB → VPU). Throughput trade: the Sequencer now issues 4× more REQUANT ops per layer (one (M, n) coeff per op, one PSB row per beat); coeff-load latency per op shrinks correspondingly. Layer-level wall-clock impact is bounded by SA throughput (unchanged) since requant is pipelined behind PSB_FLUSH. Affected specifically: §3 "64-Lane VPU" heading, `SIMD_ACT` 64-lane claim, §11.7 heading, asm comments referencing "64 lanes". Constant `VPU_LANES` in `src/packages/NPU_HW_params_pkg.sv` is now 16.
+
 ---
 
 ## 2. Block Descriptions

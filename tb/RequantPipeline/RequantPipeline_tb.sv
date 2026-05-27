@@ -1,15 +1,13 @@
-// Testbench for RequantPipeline
+// Testbench for RequantPipeline (16-lane, ChCount=1 build)
 `timescale 1ns/1ps
 
 module RequantPipeline_tb();
 
-    // Instantiating all the variables used in this module and defining input and output pins
     localparam int CLK_HALF_NS  = 5;
-    localparam int Lanes        = 64;
-    localparam int ChCount      = 4;
+    localparam int Lanes        = 16;
+    localparam int ChCount      = 1;
     localparam int LanesPerCh   = Lanes / ChCount;
     localparam int LaneLatency  = 4;
-    localparam int PsbRows      = Lanes / 16;
 
     logic clk;
     logic rst;
@@ -29,7 +27,6 @@ module RequantPipeline_tb();
 
     int err_cnt;
 
-    // Instantiating the dut
     RequantPipeline #(
         .Lanes      (Lanes),
         .ChCount    (ChCount),
@@ -37,7 +34,6 @@ module RequantPipeline_tb();
         .ShiftWidth (8)
     ) dut (.*);
 
-    // Creating the simulated clock
     initial clk = 1'b0;
     always #CLK_HALF_NS clk = ~clk;
 
@@ -64,14 +60,12 @@ module RequantPipeline_tb();
         end
     endfunction
 
-    // Helper function for sign-extending packed INT8 values
     function automatic logic signed [31:0] sext8(input logic [7:0] value);
         begin
             sext8 = 32'(signed'(value));
         end
     endfunction
 
-    // Helper task for checking expected values
     task automatic chk(input logic cond, input string msg);
         if (!cond) begin
             err_cnt++;
@@ -79,7 +73,6 @@ module RequantPipeline_tb();
         end
     endtask
 
-    // Resets everything
     task automatic reset_dut();
         rst = 1'b1;
         mode_i = 2'b00;
@@ -98,8 +91,7 @@ module RequantPipeline_tb();
         @(posedge clk);
     endtask
 
-    task automatic set_group_params(
-        input int ch,
+    task automatic set_params(
         input logic signed [31:0] bias,
         input logic signed [31:0] m0a,
         input logic [7:0]         na,
@@ -107,30 +99,27 @@ module RequantPipeline_tb();
         input logic [7:0]         nb
     );
         begin
-            bias_i[ch*32 +: 32] = bias;
-            m0_a_i[ch*32 +: 32] = m0a;
-            n_a_i[ch*8 +: 8] = na;
-            m0_b_i[ch*32 +: 32] = m0b;
-            n_b_i[ch*8 +: 8] = nb;
+            bias_i = bias;
+            m0_a_i = m0a;
+            n_a_i  = na;
+            m0_b_i = m0b;
+            n_b_i  = nb;
         end
     endtask
 
-    // Checks all output lanes for FROM_SRAM and BINARY_ADD modes
     task automatic check_sram_result(input string name, input logic binary_mode);
-        int ch;
         logic signed [7:0] expected;
         logic signed [7:0] got;
         begin
             for (int lane = 0; lane < Lanes; lane++) begin
-                ch = lane / LanesPerCh;
                 expected = ref_requant(
                     sext8(sram_a_i[lane*8 +: 8]),
                     binary_mode ? sext8(sram_b_i[lane*8 +: 8]) : 32'sd0,
                     32'sd0,
-                    signed'(m0_a_i[ch*32 +: 32]),
-                    n_a_i[ch*8 +: 8],
-                    signed'(m0_b_i[ch*32 +: 32]),
-                    n_b_i[ch*8 +: 8]
+                    signed'(m0_a_i),
+                    n_a_i,
+                    signed'(m0_b_i),
+                    n_b_i
                 );
                 got = signed'(data_o[lane*8 +: 8]);
                 chk(got === expected,
@@ -139,26 +128,19 @@ module RequantPipeline_tb();
         end
     endtask
 
-    // Checks all output lanes for the FROM_PSB mode
     task automatic check_psb_result(input string name);
-        int ch;
-        int row;
-        int col;
         logic signed [31:0] op_a;
         logic signed [7:0] expected;
         logic signed [7:0] got;
         begin
             for (int lane = 0; lane < Lanes; lane++) begin
-                row = lane / 16;
-                col = lane % 16;
-                ch = lane / LanesPerCh;
-                op_a = 32'sd1000 * 32'(row) + 32'(col) - 32'sd20;
+                op_a = signed'(psb_row_i[lane]);
                 expected = ref_requant(
                     op_a,
                     32'sd0,
-                    signed'(bias_i[ch*32 +: 32]),
-                    signed'(m0_a_i[ch*32 +: 32]),
-                    n_a_i[ch*8 +: 8],
+                    signed'(bias_i),
+                    signed'(m0_a_i),
+                    n_a_i,
                     32'sd0,
                     8'd0
                 );
@@ -170,25 +152,20 @@ module RequantPipeline_tb();
     endtask
 
     initial begin
-        // Testcase 1: reset should clear the output valid flag and data
+        // Testcase 1: reset clears outputs
         err_cnt = 0;
         reset_dut();
         #1ps;
         chk(!valid_o && data_o == '0, "reset clears output");
 
-        // Testcase 2: FROM_SRAM mode should sign-extend INT8 lanes and apply each channel group's scale
-        set_group_params(0, 32'sd0, 32'sd1, 8'd0, 32'sd0, 8'd0);
-        set_group_params(1, 32'sd0, 32'sd2, 8'd1, 32'sd0, 8'd0);
-        set_group_params(2, 32'sd0, -32'sd1, 8'd0, 32'sd0, 8'd0);
-        set_group_params(3, 32'sd0, 32'sd4, 8'd2, 32'sd0, 8'd0);
+        // Testcase 2: FROM_SRAM mode — sign-extend INT8 lanes and apply scale
+        set_params(32'sd0, 32'sd2, 8'd1, 32'sd0, 8'd0);
         for (int lane = 0; lane < Lanes; lane++) begin
             case (lane)
                 0:  sram_a_i[lane*8 +: 8] = 8'sd127;
                 1:  sram_a_i[lane*8 +: 8] = -8'sd128;
-                16: sram_a_i[lane*8 +: 8] = 8'sd100;
-                32: sram_a_i[lane*8 +: 8] = 8'sd64;
-                48: sram_a_i[lane*8 +: 8] = -8'sd64;
-                default: sram_a_i[lane*8 +: 8] = 8'(lane - 32);
+                2:  sram_a_i[lane*8 +: 8] = 8'sd100;
+                default: sram_a_i[lane*8 +: 8] = 8'(lane - 8);
             endcase
         end
         mode_i = 2'b00;
@@ -202,19 +179,16 @@ module RequantPipeline_tb();
         @(posedge clk); #1ps;
         chk(!valid_o, "FROM_SRAM valid_o is one cycle");
 
-        // Testcase 3: BINARY_ADD mode should scale two INT8 tensors and add them lane by lane
-        set_group_params(0, 32'sd0, 32'sd1, 8'd0, 32'sd1, 8'd0);
-        set_group_params(1, 32'sd0, 32'sd2, 8'd1, 32'sd3, 8'd1);
-        set_group_params(2, 32'sd0, 32'sd4, 8'd2, -32'sd2, 8'd0);
-        set_group_params(3, 32'sd0, -32'sd1, 8'd0, 32'sd1, 8'd0);
+        // Testcase 3: BINARY_ADD mode — two INT8 tensors scaled and summed
+        set_params(32'sd0, 32'sd2, 8'd1, 32'sd3, 8'd1);
         for (int lane = 0; lane < Lanes; lane++) begin
-            sram_a_i[lane*8 +: 8] = 8'(lane - 20);
-            sram_b_i[lane*8 +: 8] = 8'(70 - lane);
+            sram_a_i[lane*8 +: 8] = 8'(lane - 4);
+            sram_b_i[lane*8 +: 8] = 8'(20 - lane);
         end
         sram_a_i[3*8 +: 8] = 8'sd120;
         sram_b_i[3*8 +: 8] = 8'sd120;
-        sram_a_i[61*8 +: 8] = -8'sd128;
-        sram_b_i[61*8 +: 8] = -8'sd128;
+        sram_a_i[15*8 +: 8] = -8'sd128;
+        sram_b_i[15*8 +: 8] = -8'sd128;
         mode_i = 2'b10;
         sram_a_valid_i = 1'b1;
         @(posedge clk);
@@ -226,7 +200,7 @@ module RequantPipeline_tb();
         @(posedge clk); #1ps;
         chk(!valid_o, "BINARY_ADD valid_o is one cycle");
 
-        // Testcase 4: an invalid mode should suppress output valid even if SRAM input is valid
+        // Testcase 4: invalid mode suppresses valid_o
         mode_i = 2'b11;
         sram_a_valid_i = 1'b1;
         repeat (LaneLatency + 2) @(posedge clk);
@@ -234,32 +208,23 @@ module RequantPipeline_tb();
         chk(!valid_o, "invalid mode suppresses valid_o");
         sram_a_valid_i = 1'b0;
 
-        // Testcase 5: FROM_PSB mode should collect four PSB rows, add bias, and requantize all 64 lanes
-        set_group_params(0, 32'sd10, 32'sd1, 8'd0, 32'sd0, 8'd0);
-        set_group_params(1, -32'sd20, 32'sd1, 8'd3, 32'sd0, 8'd0);
-        set_group_params(2, 32'sd0, -32'sd1, 8'd0, 32'sd0, 8'd0);
-        set_group_params(3, 32'sd127, 32'sd2, 8'd1, 32'sd0, 8'd0);
+        // Testcase 5: FROM_PSB mode — one 16-lane INT32 row + bias requantized
+        set_params(32'sd10, 32'sd1, 8'd0, 32'sd0, 8'd0);
         mode_i = 2'b01;
-        for (int row = 0; row < PsbRows; row++) begin
-            for (int col = 0; col < 16; col++) begin
-                psb_row_i[col] = 32'sd1000 * 32'(row) + 32'(col) - 32'sd20;
-            end
-            psb_row_valid_i = 1'b1;
-            @(posedge clk);
-            psb_row_valid_i = 1'b0;
-            if (row != PsbRows - 1) begin
-                @(posedge clk); #1ps;
-                chk(!valid_o, "FROM_PSB does not output before four rows");
-            end
+        for (int col = 0; col < 16; col++) begin
+            psb_row_i[col] = 32'sd100 * 32'(col) - 32'sd200;
         end
-        repeat (LaneLatency + 1) @(posedge clk);
+        psb_row_valid_i = 1'b1;
+        @(posedge clk);
+        psb_row_valid_i = 1'b0;
+        repeat (LaneLatency) @(posedge clk);
         #1ps;
-        chk(valid_o, "FROM_PSB valid_o after stage buffer plus lane latency");
+        chk(valid_o, "FROM_PSB valid_o at lane latency");
         check_psb_result("FROM_PSB");
         @(posedge clk); #1ps;
         chk(!valid_o, "FROM_PSB valid_o is one cycle");
 
-        // Testcase 6: reset in the middle of a transaction should flush the full pipeline
+        // Testcase 6: reset mid-transaction flushes the pipeline
         mode_i = 2'b00;
         sram_a_valid_i = 1'b1;
         sram_a_i = '1;

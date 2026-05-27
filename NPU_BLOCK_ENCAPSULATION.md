@@ -19,7 +19,7 @@ Refactor of `src/NPU/NPU.sv` (707 lines, flat block sections) into four reusable
 | 1 | 10 `DepFIFO` instances at NPU top (push/pop tied off) | DONE | pending | Localparam `DepDepth=8`; nets named `<src>_to_<dst>_{push,pop,full,empty}`; tie-offs grouped by phase that removes them |
 | 2 | Extract `SA_Block.sv` | DONE | pending | New file 191 lines; NPU.sv SA section collapsed to single instance; PSB still references `sa_row_out_w` (was MatrixMulOut) |
 | 3 | Extract `PSB_Block.sv` | DONE | pending | New file ~152 lines; NPU.sv PSB section collapsed to single instance; `sa_row_valid` exposed but reserved (not yet driving psb internally) |
-| 4 | Extract `Requant_Block.sv` | DONE | pending | New file ~175 lines; parameterized (Lanes=64/ChCount=4/M0Width/ShiftWidth); coeff + out-bank ports surfaced; localparams promoted to block parameters |
+| 4 | Extract `Requant_Block.sv` | DONE | pending | New file ~175 lines; parameterized (Lanes=16/ChCount=1/M0Width/ShiftWidth, narrowed 2026-05-26); coeff + out-bank ports surfaced; localparams promoted to block parameters |
 | 5 | Extract `VPU_Block.sv` | DONE | pending | New file ~180 lines, parameterized (Lanes=16); OutBank writer + Output/Residual/LUT read handles surfaced |
 | 6 | DMA dep-port stubs in `DMA.sv` shell | DONE | pending | 8 dep pins added to DMA.sv module declaration; all tied 0 inside; NPU top wires DMA dep ports to the 4 DMA-touching DepFIFOs |
 | 7 | Final cleanup + elaboration check + memory update | DONE | pending | NPU.sv 667 lines (was 707). Structure: Sequencer (86–166) → DepFIFO bank (168–256) → DMA shell (257–394) → SRAMHub (397–502) → 4 block wrappers (504–665) → endmodule (667). Memory file `project_npu_wiring.md` rewritten. Elaboration NOT YET RUN locally — user to validate with Vivado/Questa. |
@@ -198,12 +198,12 @@ Requant_Block (
 ```
 
 **Encapsulates** (NPU.sv 547–625):
-- `localparam` `ReqLanes=64`, `ReqChCount=4`, `ReqM0Width=COEFF_M_WIDTH`, `ReqShiftWidth=8`
+- `localparam` `ReqLanes=16`, `ReqChCount=1`, `ReqM0Width=COEFF_M_WIDTH`, `ReqShiftWidth=8` (narrowed 2026-05-26)
 - `REQUANT_instr_fifo` (DEPTH=8)
 - `Dispatch_REQ` (params ChCount, M0Width, ShiftWidth)
 - `RequantPipeline` (params Lanes=ReqLanes, ChCount, M0Width, ShiftWidth)
 - Coeff unpacking (`req_m0_a`, `req_n_a`, `req_bias`)
-- 128-bit lo-slice routing (only `req_data_o_w[127:0]` reaches OutBank; full 512b deferred)
+- Full 128-bit `req_data_o_w` routed directly to OutBank (16-lane convergence — see arch amendment)
 
 ### VPU_Block (consumer of REQ→VPU, DMA→VPU; producer of VPU→REQ, VPU→DMA)
 

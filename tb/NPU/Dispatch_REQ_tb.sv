@@ -8,7 +8,7 @@ module Dispatch_REQ_tb();
 
     // Instantiating all the variables used in this module and defining input and output pins
     localparam int CLK_HALF_NS = 5;
-    localparam int ChCount = 4;
+    localparam int ChCount = 1;
     localparam int M0Width = 32;
     localparam int ShiftWidth = 8;
 
@@ -18,7 +18,7 @@ module Dispatch_REQ_tb();
     logic                                             fifo_empty;
     logic                                             fifo_rd_en;
     logic                                             req_valid_o;
-    logic [127:0]                                     req_data_o_lo;
+    logic [127:0]                                     req_data_o;
     logic [COEFF_M_WIDTH+COEFF_S_WIDTH-1:0]           req_coeff_rdata;
     logic [1:0]                                       req_mode;
     logic [$clog2(MAX_CHANNELS)-1:0]                  req_coeff_raddr;
@@ -74,7 +74,7 @@ module Dispatch_REQ_tb();
         fifo_dout = '0;
         fifo_empty = 1'b1;
         req_valid_o = 1'b0;
-        req_data_o_lo = 128'h0;
+        req_data_o = 128'h0;
         for (int i = 0; i < 8; i++) coeff_mem[i] = {32'(32'h1000_0000 + i), 4'(i)};
         repeat (4) @(posedge clk);
         rst = 1'b0;
@@ -116,7 +116,7 @@ module Dispatch_REQ_tb();
         chk(req_n_a[0 +: ShiftWidth] == 8'h1, "first captured shift reflects coeff stream");
 
         // Testcase 5: first valid pipeline beat should write output data but should not finish yet
-        req_data_o_lo = 128'h1111_2222_3333_4444_5555_6666_7777_8888;
+        req_data_o = 128'h1111_2222_3333_4444_5555_6666_7777_8888;
         req_valid_o = 1'b1;
         @(posedge clk); #1ps;
         chk(!vpu_out_wen, "first valid beat is captured before write");
@@ -128,7 +128,7 @@ module Dispatch_REQ_tb();
         chk(!unit_done, "not done before target beat count");
 
         // Testcase 6: second valid beat reaches the target count and should complete the operation
-        req_data_o_lo = 128'hAAAA_BBBB_CCCC_DDDD_EEEE_FFFF_0000_1234;
+        req_data_o = 128'hAAAA_BBBB_CCCC_DDDD_EEEE_FFFF_0000_1234;
         @(posedge clk); #1ps;
         chk(!vpu_out_wen, "second valid beat is captured before write");
         @(posedge clk); #1ps;

@@ -1,4 +1,4 @@
-// Testbench for Requant_Block
+// Testbench for Requant_Block (16-lane, ChCount=1 build)
 `timescale 1ns/1ps
 
 import NPU_HW_params_pkg::*;
@@ -6,10 +6,9 @@ import NPU_ISA_pkg::*;
 
 module Requant_Block_tb();
 
-    // Instantiating all the variables used in this module and defining input and output pins
     localparam int CLK_HALF_NS = 5;
-    localparam int Lanes = 64;
-    localparam int ChCount = 4;
+    localparam int Lanes = 16;
+    localparam int ChCount = 1;
 
     logic clk;
     logic rst;
@@ -41,7 +40,6 @@ module Requant_Block_tb();
     logic seen_psb_push;
     logic seen_vpu_push;
 
-    // Instantiating the dut
     Requant_Block #(
         .Lanes(Lanes),
         .ChCount(ChCount)
@@ -63,11 +61,9 @@ module Requant_Block_tb();
         end
     end
 
-    // Creating the simulated clock
     initial clk = 1'b0;
     always #CLK_HALF_NS clk = ~clk;
 
-    // Helper function to build the REQUANT payload
     function automatic logic [111:0] requant_payload(input logic [9:0] ch_count);
         npu_requant_payload_t p;
         p = '0;
@@ -75,13 +71,11 @@ module Requant_Block_tb();
         return p;
     endfunction
 
-    // Helper function to build a dispatch FIFO word
     function automatic logic [123:0] instr(input npu_opcode_e opcode,
                                            input logic [111:0] payload);
         return {opcode, 4'h0, payload};
     endfunction
 
-    // Helper task for checking expected values
     task automatic chk(input logic cond, input string msg);
         if (!cond) begin
             err_cnt++;
@@ -89,7 +83,6 @@ module Requant_Block_tb();
         end
     endtask
 
-    // Resets everything
     task automatic reset_dut();
         rst = 1'b1;
         disp_payload = '0;
@@ -106,7 +99,6 @@ module Requant_Block_tb();
         @(posedge clk);
     endtask
 
-    // Sends one instruction into the block FIFO
     task automatic push_instr(input npu_opcode_e opcode, input logic [111:0] payload);
         disp_payload = instr(opcode, payload);
         disp_push = 1'b1;
@@ -114,18 +106,16 @@ module Requant_Block_tb();
         disp_push = 1'b0;
     endtask
 
-    // Drives one PSB row and records expected lower 16 INT8 outputs
-    task automatic drive_psb_row(input int row);
+    // Drives one PSB row and records expected 16 INT8 outputs (m0=1, n=0, no bias)
+    task automatic drive_psb_row();
         logic signed [31:0] value;
         begin
             for (int col = 0; col < SA_COLS; col++) begin
-                value = 32'sd10 * 32'(row) + 32'(col) - 32'sd8;
+                value = 32'(col) - 32'sd8;
                 psb_row_in[col*ACCUM_WIDTH +: ACCUM_WIDTH] = value;
-                if (row == 0) begin
-                    if (value > 127) expected_lanes[col] = 8'sd127;
-                    else if (value < -128) expected_lanes[col] = -8'sd128;
-                    else expected_lanes[col] = value[7:0];
-                end
+                if (value > 127) expected_lanes[col] = 8'sd127;
+                else if (value < -128) expected_lanes[col] = -8'sd128;
+                else expected_lanes[col] = value[7:0];
             end
             psb_row_valid = 1'b1;
             @(posedge clk);
@@ -134,31 +124,28 @@ module Requant_Block_tb();
     endtask
 
     initial begin
-        // Testcase 1: reset should leave the block idle
+        // Testcase 1: reset leaves the block idle
         err_cnt = 0;
         reset_dut();
         #1ps;
         chk(!disp_full && !unit_done && !out_wen, "reset leaves Requant block idle");
 
-        // Testcase 2: REQUANT should wait until both dependency inputs are ready
+        // Testcase 2: REQUANT waits for both dependency tokens
         push_instr(OP_REQUANT, requant_payload(10'd1));
         repeat (8) @(posedge clk); #1ps;
         chk(!dep_psb_to_req_pop && !dep_vpu_to_req_pop && !out_wen,
             "dependency gating blocks REQUANT consumption");
 
-        // Testcase 3: once dependencies are ready, coefficients should load and PSB rows should requantize
+        // Testcase 3: with deps ready, coeff loads then one PSB row requantizes
         dep_psb_to_req_empty = 1'b0;
         dep_vpu_to_req_empty = 1'b0;
-        repeat (10) @(posedge clk);
+        repeat (6) @(posedge clk);
         #1ps;
         chk(seen_req_pop && seen_vpu_pop, "REQUANT pops both dependency tokens");
-        for (int row = 0; row < 4; row++) begin
-            drive_psb_row(row);
-            @(posedge clk);
-        end
+        drive_psb_row();
         while (!out_wen) @(posedge clk);
         #1ps;
-        chk(out_waddr == 1, "out_waddr advances after first write");
+        chk(out_waddr == 0, "out_waddr is 0 on first write");
         for (int lane = 0; lane < 16; lane++) begin
             chk(signed'(out_wdata[lane*8 +: 8]) === expected_lanes[lane],
                 $sformatf("requant lane %0d expected %0d got %0d",
@@ -168,7 +155,7 @@ module Requant_Block_tb();
         @(posedge clk); #1ps;
         chk(seen_psb_push && seen_vpu_push, "REQUANT pushes downstream dependency tokens");
 
-        // Testcase 4: done and write strobes should be one cycle
+        // Testcase 4: done and write strobes are one cycle
         chk(!unit_done && !out_wen, "REQUANT completion strobes are one cycle");
 
         $display("Requant_Block_tb errors: %0d", err_cnt);

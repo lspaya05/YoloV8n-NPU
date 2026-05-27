@@ -7,8 +7,8 @@
 // the Output-Bank writer bus that is muxed against the VPU_Block writer at
 // NPU top. Dep gating uses Option A — Dispatch_REQ is untouched.
 // Parameters:
-//     - Lanes: requant pipeline width (default 64)
-//     - ChCount: per-instruction coefficient channel count (default 4)
+//     - Lanes: requant pipeline width (default 16, matches VPU_LANES and OB word)
+//     - ChCount: per-instruction coefficient channel count (default 1)
 //     - M0Width: requant scale field width (default COEFF_M_WIDTH)
 //     - ShiftWidth: requant shift field width (default 8)
 // Inputs:
@@ -30,8 +30,8 @@ import NPU_HW_params_pkg::*;
 import NPU_ISA_pkg::*;
 
 module Requant_Block #(
-    parameter int Lanes      = 64,
-    parameter int ChCount    = 4,
+    parameter int Lanes      = 16,
+    parameter int ChCount    = 1,
     parameter int M0Width    = COEFF_M_WIDTH,
     parameter int ShiftWidth = 8
 ) (
@@ -153,7 +153,7 @@ module Requant_Block #(
         .fifo_empty      (req_empty_to_dispatch),
         .fifo_rd_en      (req_rd_en_from_dispatch),
         .req_valid_o     (req_valid_o_w),
-        .req_data_o_lo   (req_data_o_w[127:0]),
+        .req_data_o      (req_data_o_w),
         .req_coeff_rdata (coeff_rdata),
         .req_mode        (req_mode_w),
         .req_coeff_raddr (coeff_raddr),
