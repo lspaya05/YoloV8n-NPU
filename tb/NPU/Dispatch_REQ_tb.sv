@@ -40,7 +40,9 @@ module Dispatch_REQ_tb();
         .ShiftWidth (ShiftWidth)
     ) dut (.*);
 
-    assign req_coeff_rdata = coeff_mem[req_coeff_raddr];
+    always_ff @(posedge clk) begin
+        req_coeff_rdata <= coeff_mem[req_coeff_raddr];
+    end
 
     // Creating the simulated clock
     initial clk = 1'b0;
@@ -75,6 +77,7 @@ module Dispatch_REQ_tb();
         fifo_empty = 1'b1;
         req_valid_o = 1'b0;
         req_data_o = 128'h0;
+        req_coeff_rdata = '0;
         for (int i = 0; i < 8; i++) coeff_mem[i] = {32'(32'h1000_0000 + i), 4'(i)};
         repeat (4) @(posedge clk);
         rst = 1'b0;
@@ -113,7 +116,8 @@ module Dispatch_REQ_tb();
         repeat (ChCount + 1) @(posedge clk);
         #1ps;
         chk(req_mode == 2'b01, "REQUANT enters FROM_PSB mode after loading coeffs");
-        chk(req_n_a[0 +: ShiftWidth] == 8'h1, "first captured shift reflects coeff stream");
+        chk(req_m0_a[0 +: M0Width] == 32'h1000_0000, "first captured M0 reflects coeff address 0");
+        chk(req_n_a[0 +: ShiftWidth] == 8'h0, "first captured shift reflects coeff address 0");
 
         // Testcase 5: first valid pipeline beat should write output data but should not finish yet
         req_data_o = 128'h1111_2222_3333_4444_5555_6666_7777_8888;

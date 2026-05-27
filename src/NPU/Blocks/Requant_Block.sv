@@ -104,12 +104,13 @@ module Requant_Block #(
     logic req_rd_en_from_dispatch;
     logic req_done_pulse;
 
-    assign deps_ready            = ~dep_psb_to_req_empty & ~dep_vpu_to_req_empty;
+    assign deps_ready            = ~dep_vpu_to_req_empty
+                                 & ~dep_req_to_psb_full  & ~dep_req_to_vpu_full;
     assign req_empty_to_dispatch = ~req_issue_valid | ~deps_ready;
     assign req_fifo_pop          = ~req_fifo_empty & ~req_issue_valid;
     assign req_fifo_rd_en        = req_rd_en_from_dispatch;
 
-    assign dep_psb_to_req_pop = req_rd_en_from_dispatch;
+    assign dep_psb_to_req_pop = req_done_pulse & ~dep_psb_to_req_empty;
     assign dep_vpu_to_req_pop = req_rd_en_from_dispatch;
 
     assign dep_req_to_psb_push = req_done_pulse;

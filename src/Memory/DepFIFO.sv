@@ -13,7 +13,8 @@
 //     - empty: Asserted when count == 0; no pending dependencies
 
 module DepFIFO #(
-    parameter int DEPTH = 4
+    parameter int DEPTH = 4,
+    parameter int RESET_COUNT = 0
 ) (
     input  logic clk, rst,
     input  logic push, pop,
@@ -24,7 +25,7 @@ module DepFIFO #(
 
     always_ff @(posedge clk) begin
         if (rst) begin
-            mem <= '0;
+            mem <= RESET_COUNT[$clog2(DEPTH):0];
         end else begin
             case ({push, pop})
                 2'b10:   if (!full)  mem <= mem + 1;

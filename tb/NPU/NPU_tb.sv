@@ -507,70 +507,37 @@ module NPU_tb();
         end
     endtask
 
-    // Push one dependency token into SA->DMA for a top-level DMA_LOAD testcase
-    task automatic give_sa_to_dma_token();
-        force dut.sa_to_dma_push = 1'b1;
-        @(negedge clk);
-        force dut.sa_to_dma_push = 1'b0;
-        @(negedge clk);
-        release dut.sa_to_dma_push;
-    endtask
-
-    // Push one dependency token into VPU->DMA for a top-level DMA_STORE testcase
     task automatic give_vpu_to_dma_token();
-        force dut.vpu_to_dma_push = 1'b1;
-        @(negedge clk);
-        force dut.vpu_to_dma_push = 1'b0;
-        @(negedge clk);
-        release dut.vpu_to_dma_push;
+        instr_mem[0] = make_instr(OP_LUT_BYPASS, UNIT_VPU, 4'h0, 112'h0);
+        fork
+            start_program(32'h0000_0000, 32'd1);
+            serve_seq_fetch(1);
+        join
+        wait_vpu_done("VPU producer created VPU->DMA dependency token");
     endtask
 
-    // Push dependency tokens needed by SA
     task automatic give_sa_tokens();
-        force dut.dma_to_sa_push = 1'b1;
-        force dut.psb_to_sa_push = 1'b1;
-        @(negedge clk);
-        force dut.dma_to_sa_push = 1'b0;
-        force dut.psb_to_sa_push = 1'b0;
-        @(negedge clk);
-        release dut.dma_to_sa_push;
-        release dut.psb_to_sa_push;
+        instr_mem[0] = make_instr(OP_DMA_LOAD, UNIT_DMA, 4'h0,
+                                  make_dma_payload(32'hF000, 16'h10, 8'd1, 8'd1, 8'd16,
+                                                   4'd0, 4'd0, 4'd0, 4'd0));
+        fork
+            begin
+                start_program(32'h0000_0000, 32'd1);
+                serve_seq_fetch(1);
+            end
+            serve_dma_read(1, 0, 0);
+        join
+        repeat (4) @(negedge clk);
     endtask
 
-    // Push dependency tokens needed by PSB
     task automatic give_psb_tokens();
-        force dut.sa_to_psb_push = 1'b1;
-        force dut.req_to_psb_push = 1'b1;
-        @(negedge clk);
-        force dut.sa_to_psb_push = 1'b0;
-        force dut.req_to_psb_push = 1'b0;
-        @(negedge clk);
-        release dut.sa_to_psb_push;
-        release dut.req_to_psb_push;
-    endtask
-
-    // Push dependency tokens needed by Requant
-    task automatic give_req_tokens();
-        force dut.psb_to_req_push = 1'b1;
-        force dut.vpu_to_req_push = 1'b1;
-        @(negedge clk);
-        force dut.psb_to_req_push = 1'b0;
-        force dut.vpu_to_req_push = 1'b0;
-        @(negedge clk);
-        release dut.psb_to_req_push;
-        release dut.vpu_to_req_push;
-    endtask
-
-    // Push dependency tokens needed by VPU
-    task automatic give_vpu_tokens();
-        force dut.req_to_vpu_push = 1'b1;
-        force dut.dma_to_vpu_push = 1'b1;
-        @(negedge clk);
-        force dut.req_to_vpu_push = 1'b0;
-        force dut.dma_to_vpu_push = 1'b0;
-        @(negedge clk);
-        release dut.req_to_vpu_push;
-        release dut.dma_to_vpu_push;
+        give_sa_tokens();
+        instr_mem[0] = make_instr(OP_MATMUL, UNIT_SA, 4'h0, {111'h0, 1'b0});
+        fork
+            start_program(32'h0000_0000, 32'd1);
+            serve_seq_fetch(1);
+        join
+        wait_sa_done("SA producer created SA->PSB dependency token");
     endtask
 
     // Waits for SA done with a timeout
@@ -746,10 +713,10 @@ module NPU_tb();
             "WT_LOAD HP1 burst shape is correct");
         chk(dut.dma_ch1_idle_w == 1'b1 && !dma_err, "WT_LOAD completed without DMA error");
 
-        // Testcase 8: DMA_LOAD waits for SA->DMA dependency token before HP0 access
-        // What it does: Runs a DMA_LOAD instruction, proves it stalls without a dependency token, then gives one token.
-        // Input: DMA_LOAD base=0x7000, tile 1x1, ch_count=16, SA->DMA token is supplied late.
-        // Expected output: No HP0 DMA read happens before the token; after the token, one read at 0x7000 completes.
+        // Testcase 8: DMA_LOAD consumes the reset SA->DMA free-resource token before HP0 access
+        // What it does: Runs a DMA_LOAD instruction using the initial free Act-bank token.
+        // Input: DMA_LOAD base=0x7000, tile 1x1, ch_count=16.
+        // Expected output: One read at 0x7000 completes and the SA->DMA token is consumed.
         reset_dut();
         instr_mem[0] = make_instr(OP_DMA_LOAD, UNIT_DMA, 4'h0,
                                   make_dma_payload(32'h7000, 16'h10, 8'd1, 8'd1, 8'd16,
@@ -758,8 +725,6 @@ module NPU_tb();
             begin
                 start_program(32'h0000_0000, 32'd1);
                 serve_seq_fetch(1);
-                wait_no_dma_access(20, "DMA_LOAD must wait for SA->DMA token");
-                give_sa_to_dma_token();
             end
             serve_dma_read(1, 0, 0);
         join
@@ -816,7 +781,7 @@ module NPU_tb();
 
         // Testcase 11: UPSAMPLE instruction through top level
         // What it does: Runs UPSAMPLE through Sequencer, Dispatch_DMA, DMA, and SRAMHub.
-        // Input: UPSAMPLE base=0xB000, tile 1x1, ch_count=16, SA->DMA token supplied late.
+        // Input: UPSAMPLE base=0xB000, tile 1x1, ch_count=16, using the reset SA->DMA free token.
         // Expected output: DMA does not read before the token, then performs four reads from the same source pixel.
         reset_dut();
         instr_mem[0] = make_instr(OP_UPSAMPLE, UNIT_DMA, 4'h0,
@@ -826,8 +791,6 @@ module NPU_tb();
             begin
                 start_program(32'h0000_0000, 32'd1);
                 serve_seq_fetch(1);
-                wait_no_dma_access(20, "UPSAMPLE must wait for SA->DMA token");
-                give_sa_to_dma_token();
             end
             serve_dma_read(4, 1, 0);
         join
@@ -839,7 +802,7 @@ module NPU_tb();
 
         // Testcase 12: CONCAT instruction through top level
         // What it does: Runs CONCAT through Sequencer, Dispatch_DMA, and DMA.
-        // Input: CONCAT base A=0xC000, base B=0xD000, tile 1x1, ch_count=32, SA->DMA token supplied late.
+        // Input: CONCAT base A=0xC000, base B=0xD000, tile 1x1, ch_count=32, using the reset SA->DMA free token.
         // Expected output: DMA reads one half-channel beat from base A and one half-channel beat from base B.
         reset_dut();
         instr_mem[0] = make_instr(OP_CONCAT, UNIT_DMA, 4'h0,
@@ -849,8 +812,6 @@ module NPU_tb();
             begin
                 start_program(32'h0000_0000, 32'd1);
                 serve_seq_fetch(1);
-                wait_no_dma_access(20, "CONCAT must wait for SA->DMA token");
-                give_sa_to_dma_token();
             end
             serve_dma_read(2, 1, 0);
         join
@@ -902,30 +863,27 @@ module NPU_tb();
 
         // Testcase 16: REQUANT instruction through top level
         // What it does: Runs REQUANT through Sequencer, Requant wrapper, coeff BRAM, and RequantPipeline.
-        // Input: REQUANT ch_count=1, PSB->REQ and VPU->REQ tokens, forced one-cycle PSB row valid.
+        // Input: REQUANT ch_count=1 runs alongside a real PSB_FLUSH. Dependency
+        // counters are seeded to model prior producer completion.
         // Expected output: Requant consumes tokens, reads coeff address 0, writes Output Bank word 0, and pulses unit_done.
         reset_dut();
-        dut.SRAM_hub.coeff_bram.mem[0] = {32'h4000_0000, 4'h0};
-        dut.SRAM_hub.coeff_bram.mem[1] = {32'h4000_0000, 4'h0};
-        dut.SRAM_hub.coeff_bram.mem[2] = {32'h4000_0000, 4'h0};
-        dut.SRAM_hub.coeff_bram.mem[3] = {32'h4000_0000, 4'h0};
+        dut.SRAM_hub.coeff_bram.mem[0] = {32'h0000_0001, 4'h0};
+        for (int row = 0; row < SA_ROWS; row++) begin
+            for (int col = 0; col < SA_COLS; col++) begin
+                dut.u_psb_block.partial_sum_buffer.buffer[row][col] = 32'sd16;
+            end
+        end
         instr_mem[0] = make_instr(OP_REQUANT, UNIT_REQ, 4'h0, {102'h0, 10'd1});
+        instr_mem[1] = make_instr(OP_PSB_FLUSH, UNIT_PSB, 4'h0, 112'h0);
         fork
-            start_program(32'h0000_0000, 32'd1);
-            serve_seq_fetch(1);
+            start_program(32'h0000_0000, 32'd2);
+            serve_seq_fetch(2);
         join
-        give_req_tokens();
-        while (dut.u_requant_block.u_dispatch_req.req_mode != 2'b01) @(negedge clk);
-        force dut.requant_row_out_w = {16{32'sd16}};
-        force dut.psb_row_out_valid_w = 1'b1;
-        repeat (4) @(negedge clk);
-        force dut.psb_row_out_valid_w = 1'b0;
+        give_psb_tokens();
         wait_req_done("REQUANT produced Requant unit_done");
-        release dut.psb_row_out_valid_w;
-        release dut.requant_row_out_w;
         chk(dut.psb_to_req_empty == 1'b1 && dut.vpu_to_req_empty == 1'b1, "REQUANT consumed Requant dependency tokens");
-        chk(dut.SRAM_hub.out_bank.mem[0] == 128'h7F7F_7F7F_7F7F_7F7F_7F7F_7F7F_7F7F_7F7F,
-            "REQUANT math saturates positive INT32 values to INT8 127");
+        chk(dut.SRAM_hub.out_bank.mem[0] == 128'h1010_1010_1010_1010_1010_1010_1010_1010,
+            "REQUANT math converts the PSB flush row to one INT8 output word");
 
         // Testcase 17: LUT_BYPASS instruction through top level
         // What it does: Runs LUT_BYPASS through VPU wrapper.
@@ -937,7 +895,6 @@ module NPU_tb();
             start_program(32'h0000_0000, 32'd1);
             serve_seq_fetch(1);
         join
-        give_vpu_tokens();
         wait_vpu_done("LUT_BYPASS produced VPU unit_done");
         chk(dut.vpu_lut_sel_w == 1'b1, "LUT_BYPASS latched LUT select high");
 
@@ -951,7 +908,6 @@ module NPU_tb();
             start_program(32'h0000_0000, 32'd1);
             serve_seq_fetch(1);
         join
-        give_vpu_tokens();
         wait_vpu_done("SIMD_ACT produced VPU unit_done");
 
         // Testcase 19: RELU instruction through top level
@@ -967,7 +923,6 @@ module NPU_tb();
             start_program(32'h0000_0000, 32'd2);
             serve_seq_fetch(2);
         join
-        give_vpu_tokens();
         wait_vpu_done("RELU produced VPU unit_done");
         chk(dut.vpu_vpu_out_wen_w == 1'b0, "RELU write strobe returned low after completion");
         chk(dut.SRAM_hub.out_bank.mem[0] == 128'h0, "RELU math clamps negative INT8 lanes to zero");
@@ -986,7 +941,6 @@ module NPU_tb();
             start_program(32'h0000_0000, 32'd2);
             serve_seq_fetch(2);
         join
-        give_vpu_tokens();
         wait_vpu_done("ELEW_ADD produced VPU unit_done");
         chk(dut.vpu_vpu_out_wen_w == 1'b0, "ELEW_ADD write strobe returned low after completion");
         chk(dut.SRAM_hub.out_bank.mem[0] == 128'h0303_0303_0303_0303_0303_0303_0303_0303,
@@ -1006,7 +960,6 @@ module NPU_tb();
             start_program(32'h0000_0000, 32'd2);
             serve_seq_fetch(2);
         join
-        give_vpu_tokens();
         wait_vpu_done("ELEW_MUL produced VPU unit_done");
         chk(dut.vpu_vpu_out_wen_w == 1'b0, "ELEW_MUL write strobe returned low after completion");
         chk(dut.SRAM_hub.out_bank.mem[0] == 128'h0101_0101_0101_0101_0101_0101_0101_0101,
@@ -1026,7 +979,6 @@ module NPU_tb();
             start_program(32'h0000_0000, 32'd2);
             serve_seq_fetch(2);
         join
-        give_vpu_tokens();
         wait_vpu_done("MAXPOOL produced VPU unit_done");
         chk(dut.vpu_vpu_out_wen_w == 1'b0, "MAXPOOL write strobe returned low after completion");
         chk(dut.SRAM_hub.out_bank.mem[0] == 128'h0202_0202_0202_0202_0202_0202_0202_0202,
@@ -1045,7 +997,6 @@ module NPU_tb();
             start_program(32'h0000_0000, 32'd2);
             serve_seq_fetch(2);
         join
-        give_vpu_tokens();
         wait_vpu_done("HREDUCE produced VPU unit_done");
         chk(dut.vpu_vpu_out_wen_w == 1'b0, "HREDUCE write strobe returned low after completion");
 
@@ -1065,7 +1016,6 @@ module NPU_tb();
             begin
                 start_program(32'h0000_0000, 32'd3);
                 serve_seq_fetch(3);
-                give_vpu_tokens();
             end
             serve_store(1, 0, 0);
         join

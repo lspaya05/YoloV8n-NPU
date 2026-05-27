@@ -39,13 +39,55 @@ module Requant_Block_tb();
     logic seen_vpu_pop;
     logic seen_psb_push;
     logic seen_vpu_push;
+    logic psb_to_req_token_push;
+    logic vpu_to_req_token_push;
+    logic req_to_psb_token_pop;
+    logic req_to_vpu_token_pop;
 
     Requant_Block #(
         .Lanes(Lanes),
         .ChCount(ChCount)
     ) dut (.*);
 
-    assign coeff_rdata = coeff_mem[coeff_raddr];
+    DepFIFO #(.DEPTH(4)) dep_psb_to_req_fifo (
+        .clk   (clk),
+        .rst   (rst),
+        .push  (psb_to_req_token_push),
+        .pop   (dep_psb_to_req_pop),
+        .full  (),
+        .empty (dep_psb_to_req_empty)
+    );
+
+    DepFIFO #(.DEPTH(4)) dep_vpu_to_req_fifo (
+        .clk   (clk),
+        .rst   (rst),
+        .push  (vpu_to_req_token_push),
+        .pop   (dep_vpu_to_req_pop),
+        .full  (),
+        .empty (dep_vpu_to_req_empty)
+    );
+
+    DepFIFO #(.DEPTH(4)) dep_req_to_psb_fifo (
+        .clk   (clk),
+        .rst   (rst),
+        .push  (dep_req_to_psb_push),
+        .pop   (req_to_psb_token_pop),
+        .full  (dep_req_to_psb_full),
+        .empty ()
+    );
+
+    DepFIFO #(.DEPTH(4)) dep_req_to_vpu_fifo (
+        .clk   (clk),
+        .rst   (rst),
+        .push  (dep_req_to_vpu_push),
+        .pop   (req_to_vpu_token_pop),
+        .full  (dep_req_to_vpu_full),
+        .empty ()
+    );
+
+    always_ff @(posedge clk) begin
+        coeff_rdata <= coeff_mem[coeff_raddr];
+    end
 
     always @(posedge clk) begin
         if (rst) begin
@@ -89,10 +131,11 @@ module Requant_Block_tb();
         disp_push = 1'b0;
         psb_row_in = '0;
         psb_row_valid = 1'b0;
-        dep_psb_to_req_empty = 1'b1;
-        dep_vpu_to_req_empty = 1'b1;
-        dep_req_to_psb_full = 1'b0;
-        dep_req_to_vpu_full = 1'b0;
+        psb_to_req_token_push = 1'b0;
+        vpu_to_req_token_push = 1'b0;
+        req_to_psb_token_pop = 1'b0;
+        req_to_vpu_token_pop = 1'b0;
+        coeff_rdata = '0;
         for (int i = 0; i < MAX_CHANNELS; i++) coeff_mem[i] = {32'sd1, 4'd0};
         repeat (5) @(posedge clk);
         rst = 1'b0;
@@ -104,6 +147,14 @@ module Requant_Block_tb();
         disp_push = 1'b1;
         @(posedge clk);
         disp_push = 1'b0;
+    endtask
+
+    task automatic push_dependency_tokens();
+        psb_to_req_token_push = 1'b1;
+        vpu_to_req_token_push = 1'b1;
+        @(posedge clk);
+        psb_to_req_token_push = 1'b0;
+        vpu_to_req_token_push = 1'b0;
     endtask
 
     // Drives one PSB row and records expected 16 INT8 outputs (m0=1, n=0, no bias)
@@ -130,21 +181,22 @@ module Requant_Block_tb();
         #1ps;
         chk(!disp_full && !unit_done && !out_wen, "reset leaves Requant block idle");
 
-        // Testcase 2: REQUANT waits for both dependency tokens
+        // Testcase 2: REQUANT waits for VPU->REQ free-resource token
         push_instr(OP_REQUANT, requant_payload(10'd1));
         repeat (8) @(posedge clk); #1ps;
         chk(!dep_psb_to_req_pop && !dep_vpu_to_req_pop && !out_wen,
             "dependency gating blocks REQUANT consumption");
 
-        // Testcase 3: with deps ready, coeff loads then one PSB row requantizes
-        dep_psb_to_req_empty = 1'b0;
-        dep_vpu_to_req_empty = 1'b0;
+        // Testcase 3: with real DepFIFO tokens, coeff loads then one PSB row requantizes
+        push_dependency_tokens();
         repeat (6) @(posedge clk);
         #1ps;
-        chk(seen_req_pop && seen_vpu_pop, "REQUANT pops both dependency tokens");
+        chk(!seen_req_pop && seen_vpu_pop, "REQUANT pops VPU token before row stream");
         drive_psb_row();
-        while (!out_wen) @(posedge clk);
-        #1ps;
+        do begin
+            @(posedge clk);
+            #1ps;
+        end while (!out_wen);
         chk(out_waddr == 0, "out_waddr is 0 on first write");
         for (int lane = 0; lane < 16; lane++) begin
             chk(signed'(out_wdata[lane*8 +: 8]) === expected_lanes[lane],
@@ -153,6 +205,7 @@ module Requant_Block_tb();
         end
         while (!unit_done) @(posedge clk);
         @(posedge clk); #1ps;
+        chk(seen_req_pop, "REQUANT pops PSB token after row stream retires");
         chk(seen_psb_push && seen_vpu_push, "REQUANT pushes downstream dependency tokens");
 
         // Testcase 4: done and write strobes are one cycle

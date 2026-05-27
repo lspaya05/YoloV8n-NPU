@@ -297,7 +297,7 @@ module NPU (
         .full(dma_to_sa_full), .empty(dma_to_sa_empty)
     );
 
-    DepFIFO #(.DEPTH(DepDepth)) dep_sa_to_dma (
+    DepFIFO #(.DEPTH(DepDepth), .RESET_COUNT(1)) dep_sa_to_dma (
         .clk(clk), .rst(rst),
         .push(sa_to_dma_push), .pop(sa_to_dma_pop),
         .full(sa_to_dma_full), .empty(sa_to_dma_empty)
@@ -309,7 +309,7 @@ module NPU (
         .full(sa_to_psb_full), .empty(sa_to_psb_empty)
     );
 
-    DepFIFO #(.DEPTH(DepDepth)) dep_psb_to_sa (
+    DepFIFO #(.DEPTH(DepDepth), .RESET_COUNT(1)) dep_psb_to_sa (
         .clk(clk), .rst(rst),
         .push(psb_to_sa_push), .pop(psb_to_sa_pop),
         .full(psb_to_sa_full), .empty(psb_to_sa_empty)
@@ -321,19 +321,19 @@ module NPU (
         .full(psb_to_req_full), .empty(psb_to_req_empty)
     );
 
-    DepFIFO #(.DEPTH(DepDepth)) dep_req_to_psb (
+    DepFIFO #(.DEPTH(DepDepth), .RESET_COUNT(1)) dep_req_to_psb (
         .clk(clk), .rst(rst),
         .push(req_to_psb_push), .pop(req_to_psb_pop),
         .full(req_to_psb_full), .empty(req_to_psb_empty)
     );
 
-    DepFIFO #(.DEPTH(DepDepth)) dep_req_to_vpu (
+    DepFIFO #(.DEPTH(DepDepth), .RESET_COUNT(1)) dep_req_to_vpu (
         .clk(clk), .rst(rst),
         .push(req_to_vpu_push), .pop(req_to_vpu_pop),
         .full(req_to_vpu_full), .empty(req_to_vpu_empty)
     );
 
-    DepFIFO #(.DEPTH(DepDepth)) dep_vpu_to_req (
+    DepFIFO #(.DEPTH(DepDepth), .RESET_COUNT(1)) dep_vpu_to_req (
         .clk(clk), .rst(rst),
         .push(vpu_to_req_push), .pop(vpu_to_req_pop),
         .full(vpu_to_req_full), .empty(vpu_to_req_empty)
@@ -345,7 +345,7 @@ module NPU (
         .full(vpu_to_dma_full), .empty(vpu_to_dma_empty)
     );
 
-    DepFIFO #(.DEPTH(DepDepth)) dep_dma_to_vpu (
+    DepFIFO #(.DEPTH(DepDepth), .RESET_COUNT(1)) dep_dma_to_vpu (
         .clk(clk), .rst(rst),
         .push(dma_to_vpu_push), .pop(dma_to_vpu_pop),
         .full(dma_to_vpu_full), .empty(dma_to_vpu_empty)
