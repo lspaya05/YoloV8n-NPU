@@ -82,6 +82,10 @@ module VPU_Block #(
     logic [123:0] vpu_dout;
     logic         vpu_fifo_empty;
     logic         vpu_fifo_rd_en;
+    logic         vpu_fifo_pop;
+    logic         vpu_fifo_pop_d;
+    logic [123:0] vpu_issue_dout;
+    logic         vpu_issue_valid;
 
     FIFO #(
         .USE_XILINX_XPM (FIFO_USE_XPM),
@@ -91,7 +95,7 @@ module VPU_Block #(
         .clk    (clk),
         .rst    (rst),
         .wr_en  (disp_push),
-        .rd_en  (vpu_fifo_rd_en),
+        .rd_en  (vpu_fifo_pop),
         .din    (disp_payload),
         .dout   (vpu_dout),
         .full   (disp_full),
@@ -107,7 +111,8 @@ module VPU_Block #(
     logic vpu_done_pulse;
 
     assign deps_ready            = ~dep_req_to_vpu_empty & ~dep_dma_to_vpu_empty;
-    assign vpu_empty_to_dispatch = vpu_fifo_empty | ~deps_ready;
+    assign vpu_empty_to_dispatch = ~vpu_issue_valid | ~deps_ready;
+    assign vpu_fifo_pop          = ~vpu_fifo_empty & ~vpu_issue_valid;
     assign vpu_fifo_rd_en        = vpu_rd_en_from_dispatch;
 
     assign dep_req_to_vpu_pop = vpu_rd_en_from_dispatch;
@@ -115,6 +120,23 @@ module VPU_Block #(
 
     assign dep_vpu_to_req_push = vpu_done_pulse;
     assign dep_vpu_to_dma_push = vpu_done_pulse;
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            vpu_fifo_pop_d  <= 1'b0;
+            vpu_issue_dout  <= '0;
+            vpu_issue_valid <= 1'b0;
+        end else begin
+            vpu_fifo_pop_d <= vpu_fifo_pop;
+            if (vpu_rd_en_from_dispatch) begin
+                vpu_issue_valid <= 1'b0;
+            end
+            if (vpu_fifo_pop_d) begin
+                vpu_issue_dout  <= vpu_dout;
+                vpu_issue_valid <= 1'b1;
+            end
+        end
+    end
 
     // -------------------------------------------------------------------------
     // Dispatch_VPU
@@ -133,7 +155,7 @@ module VPU_Block #(
     ) u_dispatch_vpu (
         .clk              (clk),
         .rst              (rst),
-        .fifo_dout        (vpu_dout),
+        .fifo_dout        (vpu_issue_dout),
         .fifo_empty       (vpu_empty_to_dispatch),
         .fifo_rd_en       (vpu_rd_en_from_dispatch),
         .vpu_valid_opcode (vpu_valid_opcode_w),

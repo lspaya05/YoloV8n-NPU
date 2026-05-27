@@ -355,11 +355,11 @@ module DMA (
     // =========================================================================
     // DMA_STORE FSM — mode 11. Row loop over r_tile_h, one AXI burst per row.
     // Per-row beats = r_tile_w * (ch_count>>4); BRAM 1-cycle read pipelined
-    // via PRIME1/PRIME2 warmup states (sram_rdata leads wdata_reg by 1 word).
+    // via PRIME1/LOAD states so registered SRAM data is captured before W.
     // Pulses dma_store_done on the bvalid of the final row.
     // =========================================================================
     typedef enum logic [2:0] {
-        SS_IDLE, SS_AW, SS_W_PRIME1, SS_W_PRIME2, SS_W, SS_B
+        SS_IDLE, SS_AW, SS_W_PRIME1, SS_W_LOAD, SS_W, SS_B
     } store_state_e;
     store_state_e store_state;
 
@@ -757,19 +757,21 @@ module DMA (
                     end
                 end
 
-                // PRIME1: raddr=send_idx in flight; pre-issue send_idx+1.
+                // PRIME1: raddr=send_idx in flight. Capture the first beat and
+                // pre-issue send_idx+1 so the next SRAM word can become valid.
                 SS_W_PRIME1: begin
-                    sram_raddr  <= store_send_idx + 1'b1;
-                    store_state <= SS_W_PRIME2;
-                end
-
-                // PRIME2: sram_rdata = mem[send_idx] (first beat). Capture into
-                // wdata_reg; pre-issue send_idx+2 for lookahead.
-                SS_W_PRIME2: begin
                     wdata_reg      <= sram_rdata;
-                    sram_raddr     <= store_send_idx + 2'd2;
+                    sram_raddr     <= store_send_idx + 1'b1;
                     store_beat_idx <= 8'h0;
                     store_state    <= SS_W;
+                end
+
+                // Registered SRAM output for the next beat is valid here.
+                // Capture it before returning to the AXI W state.
+                SS_W_LOAD: begin
+                    wdata_reg  <= sram_rdata;
+                    sram_raddr <= sram_raddr + 1'b1;
+                    store_state <= SS_W;
                 end
 
                 // Stream: each accepted beat advances send_idx and lookahead.
@@ -778,9 +780,8 @@ module DMA (
                     if (store_beat_idx == store_per_row_r - 8'h1) begin
                         store_state <= SS_B;
                     end else begin
-                        wdata_reg      <= sram_rdata;
-                        sram_raddr     <= sram_raddr + 1'b1;
                         store_beat_idx <= store_beat_idx + 8'h1;
+                        store_state    <= SS_W_LOAD;
                     end
                 end
 

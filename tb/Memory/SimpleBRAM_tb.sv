@@ -174,11 +174,9 @@ module SimpleBRAM_tb;
 
     // Track whether any address has been written (crude: any write done)
     logic write_seen;
-    always_ff @(posedge clk)
-        if (w_en) write_seen <= 1'b1;
-        else      write_seen <= write_seen;
-
     initial write_seen = 1'b0;
+    always @(posedge clk)
+        if (w_en) write_seen <= 1'b1;
 
     property p_no_x_rdata;
         @(posedge clk)

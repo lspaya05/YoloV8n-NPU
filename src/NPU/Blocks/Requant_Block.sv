@@ -76,6 +76,10 @@ module Requant_Block #(
     logic [123:0] req_dout;
     logic         req_fifo_empty;
     logic         req_fifo_rd_en;
+    logic         req_fifo_pop;
+    logic         req_fifo_pop_d;
+    logic [123:0] req_issue_dout;
+    logic         req_issue_valid;
 
     FIFO #(
         .USE_XILINX_XPM (FIFO_USE_XPM),
@@ -85,7 +89,7 @@ module Requant_Block #(
         .clk    (clk),
         .rst    (rst),
         .wr_en  (disp_push),
-        .rd_en  (req_fifo_rd_en),
+        .rd_en  (req_fifo_pop),
         .din    (disp_payload),
         .dout   (req_dout),
         .full   (disp_full),
@@ -101,7 +105,8 @@ module Requant_Block #(
     logic req_done_pulse;
 
     assign deps_ready            = ~dep_psb_to_req_empty & ~dep_vpu_to_req_empty;
-    assign req_empty_to_dispatch = req_fifo_empty | ~deps_ready;
+    assign req_empty_to_dispatch = ~req_issue_valid | ~deps_ready;
+    assign req_fifo_pop          = ~req_fifo_empty & ~req_issue_valid;
     assign req_fifo_rd_en        = req_rd_en_from_dispatch;
 
     assign dep_psb_to_req_pop = req_rd_en_from_dispatch;
@@ -109,6 +114,23 @@ module Requant_Block #(
 
     assign dep_req_to_psb_push = req_done_pulse;
     assign dep_req_to_vpu_push = req_done_pulse;
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            req_fifo_pop_d  <= 1'b0;
+            req_issue_dout  <= '0;
+            req_issue_valid <= 1'b0;
+        end else begin
+            req_fifo_pop_d <= req_fifo_pop;
+            if (req_rd_en_from_dispatch) begin
+                req_issue_valid <= 1'b0;
+            end
+            if (req_fifo_pop_d) begin
+                req_issue_dout  <= req_dout;
+                req_issue_valid <= 1'b1;
+            end
+        end
+    end
 
     // -------------------------------------------------------------------------
     // Dispatch_REQ
@@ -127,7 +149,7 @@ module Requant_Block #(
     ) u_dispatch_req (
         .clk             (clk),
         .rst             (rst),
-        .fifo_dout       (req_dout),
+        .fifo_dout       (req_issue_dout),
         .fifo_empty      (req_empty_to_dispatch),
         .fifo_rd_en      (req_rd_en_from_dispatch),
         .req_valid_o     (req_valid_o_w),

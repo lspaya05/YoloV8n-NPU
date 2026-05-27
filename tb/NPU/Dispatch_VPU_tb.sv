@@ -34,6 +34,8 @@ module Dispatch_VPU_tb();
     logic                              vpu_out_wen;
     logic                              lut_bypass_en;
     logic                              vpu_lut_sel;
+    logic [7:0]                        vpu_lut_raddr;
+    logic [7:0]                        vpu_lut_rdata;
     logic                              unit_done;
 
     int err_cnt;
@@ -68,6 +70,7 @@ module Dispatch_VPU_tb();
         vpu_out = 128'hCAFE_BABE_DEAD_BEEF_0123_4567_89AB_CDEF;
         vpu_hred_rdata = 128'h0102_0304_0506_0708_090A_0B0C_0D0E_0F10;
         vpu_res_rdata = 128'h1111_2222_3333_4444_5555_6666_7777_8888;
+        vpu_lut_rdata = 8'h00;
         cfg_tile_M = 8'd4;
         cfg_tile_N = 8'd4;
         repeat (4) @(posedge clk);

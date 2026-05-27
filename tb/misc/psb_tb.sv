@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 
-module psb_tb;
+module psb_misc_tb;
 
     // Small PSB size for easier testing.
     localparam int ACCUMULATOR_BITWIDTH = 32;

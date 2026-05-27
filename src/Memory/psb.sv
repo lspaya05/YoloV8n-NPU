@@ -42,7 +42,14 @@ module psb #(
     output logic busy
 );
 
-    enum {s0, s1, s2, s3} ps, ns;
+    typedef enum logic [2:0] {
+        S_IDLE,
+        S_ACC,
+        S_FLUSH,
+        S_ACC_DONE,
+        S_FLUSH_DONE
+    } state_e;
+    state_e ps, ns;
 
     logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] buffer [ARRAY_HEIGHT - 1 : 0][ARRAY_LENGTH - 1 : 0];
 
@@ -56,36 +63,35 @@ module psb #(
     assign last_flush_row = (flush_row_count == ARRAY_HEIGHT - 1);
 
     always_comb begin
-        case (ps)
-            s0: begin
+        unique case (ps)
+            S_IDLE: begin
                 if (psb_acc)
-                    ns = s1;
+                    ns = S_ACC;
                 else if (psb_flush)
-                    ns = s2;
+                    ns = S_FLUSH;
                 else
-                    ns = s0;
+                    ns = S_IDLE;
             end
 
-            s1: begin
+            S_ACC: begin
                 if (row_valid && last_acc_row)
-                    ns = s3;
+                    ns = S_ACC_DONE;
                 else
-                    ns = s1;
+                    ns = S_ACC;
             end
 
-            s2: begin
+            S_FLUSH: begin
                 if (last_flush_row)
-                    ns = s3;
+                    ns = S_FLUSH_DONE;
                 else
-                    ns = s2;
+                    ns = S_FLUSH;
             end
 
-            s3: begin
-                ns = s0;
-            end
+            S_ACC_DONE:   ns = S_IDLE;
+            S_FLUSH_DONE: ns = S_IDLE;
 
             default: begin
-                ns = s0;
+                ns = S_IDLE;
             end
         endcase
     end
@@ -96,27 +102,28 @@ module psb #(
         flush_done    = 1'b0;
         busy          = 1'b1;
 
-        case (ps)
-            s0: begin
+        unique case (ps)
+            S_IDLE: begin
                 busy = 1'b0;
             end
 
-            s1: begin
+            S_ACC: begin
                 busy = 1'b1;
             end
 
-            s2: begin
+            S_FLUSH: begin
                 row_out_valid = 1'b1;
                 busy          = 1'b1;
             end
 
-            s3: begin
+            S_ACC_DONE: begin
                 busy = 1'b0;
+                acc_done = 1'b1;
+            end
 
-                if (last_acc_row)
-                    acc_done = 1'b1;
-                else
-                    flush_done = 1'b1;
+            S_FLUSH_DONE: begin
+                busy = 1'b0;
+                flush_done = 1'b1;
             end
 
             default: begin
@@ -130,7 +137,7 @@ module psb #(
 
     always_ff @(posedge clk) begin
         if (rst)
-            ps <= s0;
+            ps <= S_IDLE;
         else
             ps <= ns;
     end
@@ -141,17 +148,19 @@ module psb #(
             flush_row_count <= '0;
         end else begin
             case (ps)
-                s0: begin
+                S_IDLE: begin
                     acc_row_count   <= '0;
                     flush_row_count <= '0;
+                    if (psb_acc && row_valid)
+                        acc_row_count <= 1;
                 end
 
-                s1: begin
+                S_ACC: begin
                     if (row_valid && !last_acc_row)
                         acc_row_count <= acc_row_count + 1;
                 end
 
-                s2: begin
+                S_FLUSH: begin
                     if (!last_flush_row)
                         flush_row_count <= flush_row_count + 1;
                 end
@@ -173,7 +182,7 @@ module psb #(
             end
         end else begin
             case (ps)
-                s1: begin
+                S_ACC: begin
                     if (row_valid) begin
                         for (int col = 0; col < ARRAY_LENGTH; col = col + 1) begin
                             buffer[acc_row_count][col] <= buffer[acc_row_count][col] + sa_row_in[col];
@@ -181,10 +190,24 @@ module psb #(
                     end
                 end
 
-                s2: begin
-                    // Clear each row while it is being presented; output mux reads buffer[flush_row_count] combinatorially.
-                    for (int col = 0; col < ARRAY_LENGTH; col = col + 1) begin
-                        buffer[flush_row_count][col] <= '0;
+                S_IDLE: begin
+                    if (psb_acc && row_valid) begin
+                        for (int col = 0; col < ARRAY_LENGTH; col = col + 1) begin
+                            buffer[0][col] <= buffer[0][col] + sa_row_in[col];
+                        end
+                    end
+                end
+
+                S_FLUSH: begin
+                    // Rows are cleared after the flush finishes so the
+                    // currently presented row remains visible for the cycle.
+                end
+
+                S_FLUSH_DONE: begin
+                    for (int row = 0; row < ARRAY_HEIGHT; row = row + 1) begin
+                        for (int col = 0; col < ARRAY_LENGTH; col = col + 1) begin
+                            buffer[row][col] <= '0;
+                        end
                     end
                 end
 

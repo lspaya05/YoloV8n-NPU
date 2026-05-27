@@ -98,6 +98,7 @@ module Dispatch_DMA (
     // =========================================================================
     typedef enum logic [2:0] {
         S_IDLE,      // wait for ~ch0_empty; assert ch0_rd_en
+        S_WAIT,      // wait 1 cycle for FIFO registered dout
         S_POP,       // 1-cycle latency: ch0_dout now valid; latch desc + opcode
         S_WAIT_DEP,  // stall until producer dep token available (LOAD/STORE only)
         S_START,     // pulse desc_start; pop dep token
@@ -147,8 +148,12 @@ module Dispatch_DMA (
                 S_IDLE: begin
                     if (!ch0_empty) begin
                         ch0_rd_en <= 1'b1;
-                        ch0_state <= S_POP;
+                        ch0_state <= S_WAIT;
                     end
+                end
+
+                S_WAIT: begin
+                    ch0_state <= S_POP;
                 end
 
                 // FIFO has 1-cycle read latency; ch0_dout valid this cycle.
@@ -218,8 +223,9 @@ module Dispatch_DMA (
     // Ch1 (WT_LOAD) FSM — single-opcode channel; no dep gating (weights
     // prefetch concurrently with SA matmul).
     // =========================================================================
-    typedef enum logic [1:0] {
+    typedef enum logic [2:0] {
         SS1_IDLE,
+        SS1_WAIT,
         SS1_POP,
         SS1_START,
         SS1_WAIT_DMA
@@ -241,8 +247,12 @@ module Dispatch_DMA (
                 SS1_IDLE: begin
                     if (!ch1_empty) begin
                         ch1_rd_en <= 1'b1;
-                        ch1_state <= SS1_POP;
+                        ch1_state <= SS1_WAIT;
                     end
+                end
+
+                SS1_WAIT: begin
+                    ch1_state <= SS1_POP;
                 end
 
                 // npu_wt_load_payload_t: wt_base_addr in payload[31:0].

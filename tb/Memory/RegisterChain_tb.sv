@@ -103,7 +103,7 @@ module RegisterChain_tb;
         $display("-- TEST 2: Chain-1 one-cycle delay");
         do_reset();
         for (int i = 1; i <= 4; i++) begin
-            automatic logic [BIT_WIDTH-1:0] val = BIT_WIDTH'(i * 0x11);
+            automatic logic [BIT_WIDTH-1:0] val = BIT_WIDTH'(i * 'h11);
             @(negedge clk); in1 = val;
             @(posedge clk); @(negedge clk);
             chk(out1 === val,
@@ -129,7 +129,7 @@ module RegisterChain_tb;
                 $sformatf("T3[0]: out4=0x%0h exp=0x%0h", out4, pipe[0]));
             // Drain remaining
             for (int i = 1; i < 4; i++) begin
-                @(negedge clk); in4 = '0;
+                in4 = '0;
                 @(posedge clk); @(negedge clk);
                 chk(out4 === pipe[i],
                     $sformatf("T3[%0d]: out4=0x%0h exp=0x%0h", i, out4, pipe[i]));

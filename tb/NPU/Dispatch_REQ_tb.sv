@@ -119,15 +119,21 @@ module Dispatch_REQ_tb();
         req_data_o_lo = 128'h1111_2222_3333_4444_5555_6666_7777_8888;
         req_valid_o = 1'b1;
         @(posedge clk); #1ps;
-        chk(vpu_out_wen && vpu_out_waddr == 1, "first valid beat writes and advances address");
+        chk(!vpu_out_wen, "first valid beat is captured before write");
+        @(posedge clk); #1ps;
+        chk(vpu_out_wen && vpu_out_waddr == 0, "first valid beat writes current address");
         chk(vpu_out_wdata == 128'h1111_2222_3333_4444_5555_6666_7777_8888,
             "first valid beat writes data");
+        @(posedge clk); #1ps;
         chk(!unit_done, "not done before target beat count");
 
         // Testcase 6: second valid beat reaches the target count and should complete the operation
         req_data_o_lo = 128'hAAAA_BBBB_CCCC_DDDD_EEEE_FFFF_0000_1234;
         @(posedge clk); #1ps;
-        chk(vpu_out_wen && vpu_out_waddr == 2, "second valid beat writes and advances address");
+        chk(!vpu_out_wen, "second valid beat is captured before write");
+        @(posedge clk); #1ps;
+        chk(vpu_out_wen && vpu_out_waddr == 1, "second valid beat writes current address");
+        @(posedge clk); #1ps;
         chk(unit_done && req_mode == 2'b00, "second beat completes operation");
 
         // Testcase 7: done and write strobes should be one cycle

@@ -95,24 +95,23 @@ module psb_tb;
     logic signed [ACCUM_W-1:0] acc_ref [HEIGHT-1:0][LENGTH-1:0];
 
     task automatic do_accumulate();
-        // Assert psb_acc for one cycle to start FSM
-        @(negedge clk); psb_acc = 1'b1;
-        @(posedge clk); @(negedge clk); psb_acc = 1'b0;
-
-        // Drive HEIGHT rows of data with row_valid
+        // Assert psb_acc with the first row, then stream the remaining rows.
         for (int r = 0; r < HEIGHT; r++) begin
             @(negedge clk);
+            psb_acc = (r == 0);
             row_valid = 1'b1;
             for (int c = 0; c < LENGTH; c++) begin
                 sa_row_in[c]      = 32'(r * LENGTH + c + 1);
                 acc_ref[r][c]     = sa_row_in[c];  // first accumulation, no prior sum
             end
             @(posedge clk); @(negedge clk);
+            psb_acc = 1'b0;
+            row_valid = 1'b0;
         end
-        row_valid = 1'b0;
 
-        // Wait for acc_done (fires in s3 then FSM returns to s0)
-        @(posedge clk); @(negedge clk);
+        // acc_done fires after the last row is accepted.
+        while (!acc_done) @(posedge clk);
+        #1ps;
         chk(acc_done === 1'b1, "acc: acc_done asserted after full tile");
         @(posedge clk); @(negedge clk);
     endtask
@@ -132,8 +131,8 @@ module psb_tb;
 
             // Verify each column
             for (int c = 0; c < LENGTH; c++) begin
-                automatic logic signed [ACCUM_W-1:0] got =
-                    requant_row_out[(c*ACCUM_W) +: ACCUM_W];
+                automatic logic signed [ACCUM_W-1:0] got;
+                got = requant_row_out[(c*ACCUM_W) +: ACCUM_W];
                 chk(got === acc_ref[r][c],
                     $sformatf("flush r%0d c%0d: got=%0d exp=%0d",
                               r, c, got, acc_ref[r][c]));

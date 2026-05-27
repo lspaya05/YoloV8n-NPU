@@ -1,40 +1,40 @@
-// Testbench for DMA — Phase 1–7 port set
+// Testbench for DMA
 `timescale 1ns/1ps
 
 import NPU_HW_params_pkg::*;
 
 module DMA_tb();
 
-    localparam int ClkHalfNs = 5;
+    // Instantiating all the variables used in this module and defining input and output pins
+    localparam int CLK_HALF_NS = 5;
+    localparam int DDR_WORDS   = 4096;
+    localparam int MAX_EVENTS  = 128;
 
-    // -------------------------------------------------------------------------
-    // DUT signals
-    // -------------------------------------------------------------------------
     logic clk;
     logic rst;
 
-    // Ch0 descriptor
     logic [31:0] src_base;
     logic [15:0] row_stride;
-    logic [7:0]  tile_w, tile_h, ch_count;
-    logic [3:0]  pad_top, pad_bot, pad_left, pad_right;
+    logic [7:0]  tile_w;
+    logic [7:0]  tile_h;
+    logic [7:0]  ch_count;
+    logic [3:0]  pad_top;
+    logic [3:0]  pad_bot;
+    logic [3:0]  pad_left;
+    logic [3:0]  pad_right;
     logic [2:0]  fetch_mode;
     logic [31:0] concat_base;
     logic [9:0]  coeff_ch_count;
     logic        lut_sel;
-
-    // Ch1 descriptor + start
     logic        ch1_start;
     logic [31:0] wt_src_base;
-
-    // Handshake / status
     logic        start;
-    logic        ch0_idle, ch1_idle;
-    logic        dma_act_bank_full, dma_wt_bank_full;
+    logic        ch0_idle;
+    logic        ch1_idle;
+    logic        dma_act_bank_full;
+    logic        dma_wt_bank_full;
     logic        dma_store_done;
-    logic        dma_err;
 
-    // HP0 read master
     logic [43:0]  hp0_araddr;
     logic         hp0_arvalid;
     logic [7:0]   hp0_arlen;
@@ -48,21 +48,6 @@ module DMA_tb();
     logic [1:0]   hp0_rresp;
     logic         hp0_rready;
 
-    // HP1 read master (WT_LOAD)
-    logic [43:0]  hp1_araddr;
-    logic         hp1_arvalid;
-    logic [7:0]   hp1_arlen;
-    logic [2:0]   hp1_arsize;
-    logic [1:0]   hp1_arburst;
-    logic [3:0]   hp1_arcache;
-    logic         hp1_arready;
-    logic [127:0] hp1_rdata;
-    logic         hp1_rvalid;
-    logic         hp1_rlast;
-    logic [1:0]   hp1_rresp;
-    logic         hp1_rready;
-
-    // HP2 write master (DMA_STORE)
     logic [43:0]  hp2_awaddr;
     logic         hp2_awvalid;
     logic [7:0]   hp2_awlen;
@@ -79,69 +64,210 @@ module DMA_tb();
     logic         hp2_bvalid;
     logic         hp2_bready;
 
-    // SRAM ports
-    logic [$clog2(RES_BANK_DEPTH)-1:0]            sram_waddr;
-    logic [127:0]                                  sram_wdata;
-    logic                                          sram_wen;
-    logic [$clog2(WT_BUF_DEPTH)-1:0]               sram_wt_waddr;
-    logic [127:0]                                  sram_wt_wdata;
-    logic                                          sram_wt_wen;
-    logic [$clog2(MAX_CHANNELS)-1:0]               sram_coeff_waddr;
-    logic [COEFF_M_WIDTH+COEFF_S_WIDTH-1:0]        sram_coeff_wdata;
-    logic                                          sram_coeff_wen;
-    logic [$clog2(LUT_DEPTH)-1:0]                  sram_lut_waddr;
-    logic [7:0]                                    sram_lut_wdata;
-    logic                                          sram_lut_wen;
-    logic                                          sram_lut_sel;
-    logic [$clog2(RES_BANK_DEPTH)-1:0]            sram_raddr;
-    logic [127:0]                                  sram_rdata;
+    logic [43:0]  hp1_araddr;
+    logic         hp1_arvalid;
+    logic [7:0]   hp1_arlen;
+    logic [2:0]   hp1_arsize;
+    logic [1:0]   hp1_arburst;
+    logic [3:0]   hp1_arcache;
+    logic         hp1_arready;
+    logic [127:0] hp1_rdata;
+    logic         hp1_rvalid;
+    logic         hp1_rlast;
+    logic [1:0]   hp1_rresp;
+    logic         hp1_rready;
 
-    // Dep ports (driven inactive; DMA still references them via lint suppressor)
-    logic dep_sa_to_dma_empty, dep_vpu_to_dma_empty;
-    logic dep_dma_to_sa_full,  dep_dma_to_vpu_full;
-    logic dep_sa_to_dma_pop,   dep_vpu_to_dma_pop;
-    logic dep_dma_to_sa_push,  dep_dma_to_vpu_push;
+    logic [$clog2(RES_BANK_DEPTH)-1:0] sram_waddr;
+    logic [127:0]                      sram_wdata;
+    logic                              sram_wen;
+    logic [$clog2(WT_BUF_DEPTH)-1:0]   sram_wt_waddr;
+    logic [127:0]                      sram_wt_wdata;
+    logic                              sram_wt_wen;
+    logic [$clog2(MAX_CHANNELS)-1:0]   sram_coeff_waddr;
+    logic [COEFF_M_WIDTH+COEFF_S_WIDTH-1:0] sram_coeff_wdata;
+    logic                              sram_coeff_wen;
+    logic [$clog2(LUT_DEPTH)-1:0]      sram_lut_waddr;
+    logic [7:0]                        sram_lut_wdata;
+    logic                              sram_lut_wen;
+    logic                              sram_lut_sel;
+    logic [$clog2(RES_BANK_DEPTH)-1:0] sram_raddr;
+    logic [127:0]                      sram_rdata;
+    logic                              dma_err;
 
-    // -------------------------------------------------------------------------
-    // SRAM models
-    // -------------------------------------------------------------------------
-    logic [127:0] act_mem  [0:RES_BANK_DEPTH-1];
-    logic [127:0] wt_mem   [0:WT_BUF_DEPTH-1];
-    logic [COEFF_M_WIDTH+COEFF_S_WIDTH-1:0] coeff_mem [0:MAX_CHANNELS-1];
-    logic [7:0]   lut_mem  [0:LUT_DEPTH-1];
-    logic [127:0] out_mem  [0:RES_BANK_DEPTH-1];   // Output bank, source for STORE
+    logic dep_sa_to_dma_empty;
+    logic dep_sa_to_dma_pop;
+    logic dep_vpu_to_dma_empty;
+    logic dep_vpu_to_dma_pop;
+    logic dep_dma_to_sa_full;
+    logic dep_dma_to_sa_push;
+    logic dep_dma_to_vpu_full;
+    logic dep_dma_to_vpu_push;
 
-    logic [127:0] ddr_words   [0:1023];            // DDR read pool (HP0 / HP1)
-    logic [127:0] store_words [0:255];             // captured by HP2 write slave
-    int           store_count;
-    int           err_cnt;
+    logic [127:0] sram_model [0:RES_BANK_DEPTH-1];
+    logic [127:0] wt_model [0:WT_BUF_DEPTH-1];
+    logic [COEFF_M_WIDTH+COEFF_S_WIDTH-1:0] coeff_model [0:MAX_CHANNELS-1];
+    logic [7:0] lut_model [0:LUT_DEPTH-1];
+    logic [127:0] ddr_words [0:DDR_WORDS-1];
+    logic [127:0] wt_ddr_words [0:DDR_WORDS-1];
+    logic [127:0] store_words [0:MAX_EVENTS-1];
+    logic         store_last_seen [0:MAX_EVENTS-1];
+    logic [43:0]  hp0_ar_seen [0:MAX_EVENTS-1];
+    logic [7:0]   hp0_arlen_seen [0:MAX_EVENTS-1];
+    logic [43:0]  hp1_ar_seen [0:MAX_EVENTS-1];
+    logic [7:0]   hp1_arlen_seen [0:MAX_EVENTS-1];
+    logic [43:0]  hp2_aw_seen [0:MAX_EVENTS-1];
+    logic [7:0]   hp2_awlen_seen [0:MAX_EVENTS-1];
 
-    // DUT
-    DMA dut (.*);
+    int err_cnt;
+    int hp0_read_burst_count;
+    int hp1_read_burst_count;
+    int hp2_write_burst_count;
+    int store_count;
+    int act_done_count;
+    int wt_done_count;
+    int store_done_count;
+    int dep_sa_push_count;
+    int dep_vpu_push_count;
 
-    // Clock
+    // Instantiating the dut
+    DMA dut (
+        .clk(clk),
+        .rst(rst),
+        .src_base(src_base),
+        .row_stride(row_stride),
+        .tile_w(tile_w),
+        .tile_h(tile_h),
+        .ch_count(ch_count),
+        .pad_top(pad_top),
+        .pad_bot(pad_bot),
+        .pad_left(pad_left),
+        .pad_right(pad_right),
+        .fetch_mode(fetch_mode),
+        .concat_base(concat_base),
+        .coeff_ch_count(coeff_ch_count),
+        .lut_sel(lut_sel),
+        .ch1_start(ch1_start),
+        .wt_src_base(wt_src_base),
+        .start(start),
+        .ch0_idle(ch0_idle),
+        .ch1_idle(ch1_idle),
+        .dma_act_bank_full(dma_act_bank_full),
+        .dma_wt_bank_full(dma_wt_bank_full),
+        .dma_store_done(dma_store_done),
+        .hp0_araddr(hp0_araddr),
+        .hp0_arvalid(hp0_arvalid),
+        .hp0_arlen(hp0_arlen),
+        .hp0_arsize(hp0_arsize),
+        .hp0_arburst(hp0_arburst),
+        .hp0_arcache(hp0_arcache),
+        .hp0_arready(hp0_arready),
+        .hp0_rdata(hp0_rdata),
+        .hp0_rvalid(hp0_rvalid),
+        .hp0_rlast(hp0_rlast),
+        .hp0_rresp(hp0_rresp),
+        .hp0_rready(hp0_rready),
+        .hp2_awaddr(hp2_awaddr),
+        .hp2_awvalid(hp2_awvalid),
+        .hp2_awlen(hp2_awlen),
+        .hp2_awsize(hp2_awsize),
+        .hp2_awburst(hp2_awburst),
+        .hp2_awcache(hp2_awcache),
+        .hp2_awready(hp2_awready),
+        .hp2_wdata(hp2_wdata),
+        .hp2_wstrb(hp2_wstrb),
+        .hp2_wlast(hp2_wlast),
+        .hp2_wvalid(hp2_wvalid),
+        .hp2_wready(hp2_wready),
+        .hp2_bresp(hp2_bresp),
+        .hp2_bvalid(hp2_bvalid),
+        .hp2_bready(hp2_bready),
+        .hp1_araddr(hp1_araddr),
+        .hp1_arvalid(hp1_arvalid),
+        .hp1_arlen(hp1_arlen),
+        .hp1_arsize(hp1_arsize),
+        .hp1_arburst(hp1_arburst),
+        .hp1_arcache(hp1_arcache),
+        .hp1_arready(hp1_arready),
+        .hp1_rdata(hp1_rdata),
+        .hp1_rvalid(hp1_rvalid),
+        .hp1_rlast(hp1_rlast),
+        .hp1_rresp(hp1_rresp),
+        .hp1_rready(hp1_rready),
+        .sram_waddr(sram_waddr),
+        .sram_wdata(sram_wdata),
+        .sram_wen(sram_wen),
+        .sram_wt_waddr(sram_wt_waddr),
+        .sram_wt_wdata(sram_wt_wdata),
+        .sram_wt_wen(sram_wt_wen),
+        .sram_coeff_waddr(sram_coeff_waddr),
+        .sram_coeff_wdata(sram_coeff_wdata),
+        .sram_coeff_wen(sram_coeff_wen),
+        .sram_lut_waddr(sram_lut_waddr),
+        .sram_lut_wdata(sram_lut_wdata),
+        .sram_lut_wen(sram_lut_wen),
+        .sram_lut_sel(sram_lut_sel),
+        .sram_raddr(sram_raddr),
+        .sram_rdata(sram_rdata),
+        .dma_err(dma_err),
+        .dep_sa_to_dma_empty(dep_sa_to_dma_empty),
+        .dep_sa_to_dma_pop(dep_sa_to_dma_pop),
+        .dep_vpu_to_dma_empty(dep_vpu_to_dma_empty),
+        .dep_vpu_to_dma_pop(dep_vpu_to_dma_pop),
+        .dep_dma_to_sa_full(dep_dma_to_sa_full),
+        .dep_dma_to_sa_push(dep_dma_to_sa_push),
+        .dep_dma_to_vpu_full(dep_dma_to_vpu_full),
+        .dep_dma_to_vpu_push(dep_dma_to_vpu_push)
+    );
+
+    // Creating the simulated clock
     initial clk = 1'b0;
-    always #ClkHalfNs clk = ~clk;
+    always #CLK_HALF_NS clk = ~clk;
 
-    // SRAM read port for STORE: combinational from out_mem (1-cycle latency
-    // implied by DMA's PRIME1/PRIME2 pipeline — model is synchronous read).
-    always @(posedge clk) sram_rdata <= out_mem[sram_raddr];
-
-    // Capture writes into the SRAM models
-    always @(posedge clk) begin
-        if (sram_wen)       act_mem[sram_waddr]        <= sram_wdata;
-        if (sram_wt_wen)    wt_mem[sram_wt_waddr]      <= sram_wt_wdata;
-        if (sram_coeff_wen) coeff_mem[sram_coeff_waddr]<= sram_coeff_wdata;
-        if (sram_lut_wen)   lut_mem[sram_lut_waddr]    <= sram_lut_wdata;
+    // SRAM write and one-cycle read model
+    always @(negedge clk) begin
+        sram_rdata = sram_model[sram_raddr];
+        if (sram_wen) sram_model[sram_waddr] <= sram_wdata;
+        if (sram_wt_wen) wt_model[sram_wt_waddr] <= sram_wt_wdata;
+        if (sram_coeff_wen) coeff_model[sram_coeff_waddr] <= sram_coeff_wdata;
+        if (sram_lut_wen) lut_model[sram_lut_waddr] <= sram_lut_wdata;
+        if (dma_act_bank_full) act_done_count++;
+        if (dma_wt_bank_full) wt_done_count++;
+        if (dma_store_done) store_done_count++;
+        if (dep_dma_to_sa_push) dep_sa_push_count++;
+        if (dep_dma_to_vpu_push) dep_vpu_push_count++;
     end
 
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
+    // Helper function to convert a byte address to a 128-bit DDR word index
     function automatic int word_index(input logic [43:0] addr);
-        return int'(addr[19:4]);  // 1024-entry DDR pool, 16 B per word
+        return int'(addr[15:4]);
     endfunction
 
+    // Helper function to make distinct DDR data
+    function automatic logic [127:0] make_word(input int tag);
+        logic [127:0] word;
+        begin
+            word = '0;
+            for (int b = 0; b < 16; b++) begin
+                word[b*8 +: 8] = 8'(tag + b);
+            end
+            return word;
+        end
+    endfunction
+
+    // Helper function to make packed requant coefficients
+    function automatic logic [127:0] make_coeff_word(input int pair);
+        logic [127:0] word;
+        begin
+            word = '0;
+            word[63:32]  = 32'h1000_0000 + pair * 2;
+            word[3:0]    = 4'(pair * 2);
+            word[127:96] = 32'h1000_0001 + pair * 2;
+            word[67:64]  = 4'(pair * 2 + 1);
+            return word;
+        end
+    endfunction
+
+    // Helper task for checking expected values
     task automatic chk(input logic cond, input string msg);
         if (!cond) begin
             err_cnt++;
@@ -149,361 +275,495 @@ module DMA_tb();
         end
     endtask
 
+    // Initializes all inputs to idle values
     task automatic init_inputs();
-        src_base = 32'h0;  row_stride = 16'h10;
-        tile_w = 8'h1;     tile_h = 8'h1;    ch_count = 8'h10;
-        pad_top = 4'h0;    pad_bot = 4'h0;
-        pad_left = 4'h0;   pad_right = 4'h0;
+        src_base = 32'h0;
+        row_stride = 16'h10;
+        tile_w = 8'h1;
+        tile_h = 8'h1;
+        ch_count = 8'h10;
+        pad_top = 4'h0;
+        pad_bot = 4'h0;
+        pad_left = 4'h0;
+        pad_right = 4'h0;
         fetch_mode = 3'b000;
         concat_base = 32'h0;
         coeff_ch_count = 10'h0;
         lut_sel = 1'b0;
-        ch1_start = 1'b0;  wt_src_base = 32'h0;
+        ch1_start = 1'b0;
+        wt_src_base = 32'h0;
         start = 1'b0;
         hp0_arready = 1'b0;
-        hp0_rdata = 128'h0;  hp0_rvalid = 1'b0;
-        hp0_rlast = 1'b0;    hp0_rresp = 2'b00;
+        hp0_rdata = 128'h0;
+        hp0_rvalid = 1'b0;
+        hp0_rlast = 1'b0;
+        hp0_rresp = 2'b00;
         hp1_arready = 1'b0;
-        hp1_rdata = 128'h0;  hp1_rvalid = 1'b0;
-        hp1_rlast = 1'b0;    hp1_rresp = 2'b00;
-        hp2_awready = 1'b0;  hp2_wready = 1'b0;
-        hp2_bresp = 2'b00;   hp2_bvalid = 1'b0;
-        dep_sa_to_dma_empty  = 1'b0;
-        dep_vpu_to_dma_empty = 1'b0;
-        dep_dma_to_sa_full   = 1'b0;
-        dep_dma_to_vpu_full  = 1'b0;
+        hp1_rdata = 128'h0;
+        hp1_rvalid = 1'b0;
+        hp1_rlast = 1'b0;
+        hp1_rresp = 2'b00;
+        hp2_awready = 1'b0;
+        hp2_wready = 1'b0;
+        hp2_bresp = 2'b00;
+        hp2_bvalid = 1'b0;
+        dep_sa_to_dma_empty = 1'b1;
+        dep_vpu_to_dma_empty = 1'b1;
+        dep_dma_to_sa_full = 1'b0;
+        dep_dma_to_vpu_full = 1'b0;
+        hp0_read_burst_count = 0;
+        hp1_read_burst_count = 0;
+        hp2_write_burst_count = 0;
         store_count = 0;
+        act_done_count = 0;
+        wt_done_count = 0;
+        store_done_count = 0;
+        dep_sa_push_count = 0;
+        dep_vpu_push_count = 0;
     endtask
 
+    // Resets everything
     task automatic reset_dut();
         rst = 1'b1;
         init_inputs();
-        for (int i = 0; i < RES_BANK_DEPTH; i++) begin act_mem[i] = 128'h0; out_mem[i] = 128'h0; end
-        for (int i = 0; i < WT_BUF_DEPTH;   i++) wt_mem[i]   = 128'h0;
-        for (int i = 0; i < MAX_CHANNELS;   i++) coeff_mem[i]= '0;
-        for (int i = 0; i < LUT_DEPTH;      i++) lut_mem[i]  = 8'h0;
-        for (int i = 0; i < 1024; i++) ddr_words[i] = {120'h0, 8'(i)};
-        for (int i = 0; i < 256;  i++) store_words[i] = 128'h0;
-        repeat (4) @(posedge clk);
+        sram_rdata = 128'h0;
+        for (int i = 0; i < RES_BANK_DEPTH; i++) sram_model[i] = 128'h0;
+        for (int i = 0; i < WT_BUF_DEPTH; i++) wt_model[i] = 128'h0;
+        for (int i = 0; i < MAX_CHANNELS; i++) coeff_model[i] = '0;
+        for (int i = 0; i < LUT_DEPTH; i++) lut_model[i] = 8'h0;
+        for (int i = 0; i < DDR_WORDS; i++) begin
+            ddr_words[i] = make_word(i);
+            wt_ddr_words[i] = make_word(16'h8000 + i);
+        end
+        for (int i = 0; i < MAX_EVENTS; i++) begin
+            store_words[i] = 128'h0;
+            store_last_seen[i] = 1'b0;
+            hp0_ar_seen[i] = 44'h0;
+            hp0_arlen_seen[i] = 8'h0;
+            hp1_ar_seen[i] = 44'h0;
+            hp1_arlen_seen[i] = 8'h0;
+            hp2_aw_seen[i] = 44'h0;
+            hp2_awlen_seen[i] = 8'h0;
+        end
+        repeat (5) @(negedge clk);
         rst = 1'b0;
-        @(posedge clk);
+        @(negedge clk);
     endtask
 
+    // Sends a one-cycle Ch0 start pulse
     task automatic pulse_start();
-        @(posedge clk);
+        @(negedge clk);
         start = 1'b1;
-        @(posedge clk);
+        @(negedge clk);
         start = 1'b0;
     endtask
 
+    // Sends a one-cycle Ch1 start pulse
     task automatic pulse_ch1_start();
-        @(posedge clk);
+        @(negedge clk);
         ch1_start = 1'b1;
-        @(posedge clk);
+        @(negedge clk);
         ch1_start = 1'b0;
     endtask
 
-    // AXI read slave: serves N bursts of arlen+1 beats from ddr_words[].
-    task automatic hp0_read_serve(input int bursts, input logic [1:0] resp = 2'b00);
+    // Waits for Ch0 to return idle with a timeout
+    task automatic wait_ch0_idle(input string name, input int timeout_cycles = 3000);
+        int count;
+        count = 0;
+        while (!ch0_idle && count < timeout_cycles) begin
+            @(posedge clk);
+            count++;
+        end
+        #1ps;
+        chk(count < timeout_cycles, {name, ": timeout waiting for ch0 idle"});
+    endtask
+
+    // Waits for Ch1 to return idle with a timeout
+    task automatic wait_ch1_idle(input string name, input int timeout_cycles = 1000);
+        int count;
+        count = 0;
+        while (!ch1_idle && count < timeout_cycles) begin
+            @(posedge clk);
+            count++;
+        end
+        #1ps;
+        chk(count < timeout_cycles, {name, ": timeout waiting for ch1 idle"});
+    endtask
+
+    // HP0 AXI read slave for one or more bursts
+    task automatic hp0_read_serve(
+        input int bursts,
+        input int ar_delay = 0,
+        input int r_gap = 0,
+        input logic [1:0] resp = 2'b00
+    );
         logic [43:0] addr;
         int beats;
-        for (int b = 0; b < bursts; b++) begin
-            while (!hp0_arvalid) @(posedge clk);
-            addr  = hp0_araddr;
+        for (int burst = 0; burst < bursts; burst++) begin
+            while (!hp0_arvalid) @(negedge clk);
+            repeat (ar_delay) @(negedge clk);
+            addr = hp0_araddr;
             beats = hp0_arlen + 1;
+            hp0_ar_seen[hp0_read_burst_count] = hp0_araddr;
+            hp0_arlen_seen[hp0_read_burst_count] = hp0_arlen;
+            hp0_read_burst_count++;
             hp0_arready = 1'b1;
-            @(posedge clk);
+            @(negedge clk);
             hp0_arready = 1'b0;
             for (int beat = 0; beat < beats; beat++) begin
-                while (!hp0_rready) @(posedge clk);
-                hp0_rdata  = ddr_words[word_index(addr) + beat];
-                hp0_rresp  = resp;
-                hp0_rlast  = (beat == beats - 1);
+                repeat (r_gap) @(negedge clk);
+                while (!hp0_rready) @(negedge clk);
+                hp0_rdata = ddr_words[word_index(addr) + beat];
+                hp0_rresp = resp;
+                hp0_rlast = (beat == beats - 1);
                 hp0_rvalid = 1'b1;
-                @(posedge clk);
+                @(negedge clk);
                 hp0_rvalid = 1'b0;
-                hp0_rlast  = 1'b0;
+                hp0_rlast = 1'b0;
             end
             hp0_rresp = 2'b00;
         end
     endtask
 
-    task automatic hp1_read_serve(input int bursts, input logic [1:0] resp = 2'b00);
+    // HP1 AXI read slave for the weight channel
+    task automatic hp1_read_serve(
+        input int ar_delay = 0,
+        input int r_gap = 0,
+        input logic [1:0] resp = 2'b00
+    );
         logic [43:0] addr;
         int beats;
-        for (int b = 0; b < bursts; b++) begin
-            while (!hp1_arvalid) @(posedge clk);
-            addr  = hp1_araddr;
-            beats = hp1_arlen + 1;
-            hp1_arready = 1'b1;
-            @(posedge clk);
-            hp1_arready = 1'b0;
-            for (int beat = 0; beat < beats; beat++) begin
-                while (!hp1_rready) @(posedge clk);
-                hp1_rdata  = ddr_words[word_index(addr) + beat];
-                hp1_rresp  = resp;
-                hp1_rlast  = (beat == beats - 1);
-                hp1_rvalid = 1'b1;
-                @(posedge clk);
-                hp1_rvalid = 1'b0;
-                hp1_rlast  = 1'b0;
-            end
-            hp1_rresp = 2'b00;
-        end
-    endtask
-
-    // AXI write slave: captures one burst into store_words[].
-    task automatic hp2_write_serve(input logic [1:0] resp = 2'b00);
-        int beats;
-        while (!hp2_awvalid) @(posedge clk);
-        beats = hp2_awlen + 1;
-        hp2_awready = 1'b1;
-        @(posedge clk);
-        hp2_awready = 1'b0;
-
-        hp2_wready = 1'b1;
+        while (!hp1_arvalid) @(negedge clk);
+        repeat (ar_delay) @(negedge clk);
+        addr = hp1_araddr;
+        beats = hp1_arlen + 1;
+        hp1_ar_seen[hp1_read_burst_count] = hp1_araddr;
+        hp1_arlen_seen[hp1_read_burst_count] = hp1_arlen;
+        hp1_read_burst_count++;
+        hp1_arready = 1'b1;
+        @(negedge clk);
+        hp1_arready = 1'b0;
         for (int beat = 0; beat < beats; beat++) begin
-            while (!hp2_wvalid) @(posedge clk);
-            store_words[store_count] = hp2_wdata;
-            store_count++;
-            @(posedge clk);
+            repeat (r_gap) @(negedge clk);
+            while (!hp1_rready) @(negedge clk);
+            hp1_rdata = wt_ddr_words[word_index(addr) + beat];
+            hp1_rresp = resp;
+            hp1_rlast = (beat == beats - 1);
+            hp1_rvalid = 1'b1;
+            @(negedge clk);
+            hp1_rvalid = 1'b0;
+            hp1_rlast = 1'b0;
         end
-        hp2_wready = 1'b0;
-
-        hp2_bresp  = resp;
-        hp2_bvalid = 1'b1;
-        while (!hp2_bready) @(posedge clk);
-        @(posedge clk);
-        hp2_bvalid = 1'b0;
+        hp1_rresp = 2'b00;
     endtask
 
-    // Wait for Ch0 to return to idle after a start pulse (with timeout).
-    task automatic wait_ch0_idle(input int timeout_cycles = 2000);
-        int cnt = 0;
-        // wait until ch0_idle deasserts (FSM entered)
-        while (ch0_idle && cnt < 50) begin @(posedge clk); cnt++; end
-        // then wait for re-assertion
-        cnt = 0;
-        while (!ch0_idle && cnt < timeout_cycles) begin @(posedge clk); cnt++; end
-        chk(cnt < timeout_cycles, "timeout waiting for ch0_idle");
-        @(posedge clk);
+    // HP2 AXI write slave for one or more store rows
+    task automatic hp2_write_serve(
+        input int rows,
+        input int aw_delay = 0,
+        input int w_gap = 0,
+        input logic [1:0] resp = 2'b00
+    );
+        int beats;
+        for (int row = 0; row < rows; row++) begin
+            while (!hp2_awvalid) @(negedge clk);
+            repeat (aw_delay) @(negedge clk);
+            beats = hp2_awlen + 1;
+            hp2_aw_seen[hp2_write_burst_count] = hp2_awaddr;
+            hp2_awlen_seen[hp2_write_burst_count] = hp2_awlen;
+            hp2_write_burst_count++;
+            hp2_awready = 1'b1;
+            @(negedge clk);
+            hp2_awready = 1'b0;
+            for (int beat = 0; beat < beats; beat++) begin
+                repeat (w_gap) @(negedge clk);
+                while (!hp2_wvalid) @(negedge clk);
+                store_words[store_count] = hp2_wdata;
+                store_last_seen[store_count] = hp2_wlast;
+                store_count++;
+                hp2_wready = 1'b1;
+                @(negedge clk);
+                hp2_wready = 1'b0;
+            end
+            hp2_bresp = resp;
+            hp2_bvalid = 1'b1;
+            while (!hp2_bready) @(negedge clk);
+            @(negedge clk);
+            hp2_bvalid = 1'b0;
+            hp2_bresp = 2'b00;
+        end
     endtask
 
-    task automatic wait_ch1_idle(input int timeout_cycles = 2000);
-        int cnt = 0;
-        while (ch1_idle && cnt < 50) begin @(posedge clk); cnt++; end
-        cnt = 0;
-        while (!ch1_idle && cnt < timeout_cycles) begin @(posedge clk); cnt++; end
-        chk(cnt < timeout_cycles, "timeout waiting for ch1_idle");
-        @(posedge clk);
-    endtask
-
-    // -------------------------------------------------------------------------
-    // Tests
-    // -------------------------------------------------------------------------
     initial begin
         err_cnt = 0;
+
+        // Testcase 1: reset should leave both channels idle and set fixed AXI constants
         reset_dut();
         #1ps;
-
-        // T1: Reset idle + AXI constants
-        chk(ch0_idle && ch1_idle && !hp0_arvalid && !hp1_arvalid && !hp2_awvalid
-            && !sram_wen && !sram_wt_wen && !sram_coeff_wen && !sram_lut_wen
-            && !dma_err && !dma_store_done,
-            "T1: reset outputs idle");
+        chk(ch0_idle && ch1_idle && !dma_act_bank_full && !dma_wt_bank_full && !dma_store_done,
+            "reset leaves DMA idle");
+        chk(!hp0_arvalid && !hp1_arvalid && !hp2_awvalid && !hp2_wvalid && !sram_wen && !dma_err,
+            "reset clears active outputs");
         chk(hp0_arsize == 3'b100 && hp0_arburst == 2'b01 && hp0_arcache == 4'b0011,
-            "T1: HP0 AXI constants");
+            "HP0 AXI constants");
         chk(hp1_arsize == 3'b100 && hp1_arburst == 2'b01 && hp1_arcache == 4'b0011,
-            "T1: HP1 AXI constants");
-        chk(hp2_awsize == 3'b100 && hp2_awburst == 2'b01 && hp2_awcache == 4'b0011,
-            "T1: HP2 AXI constants");
+            "HP1 AXI constants");
+        chk(hp2_awsize == 3'b100 && hp2_awburst == 2'b01 && hp2_awcache == 4'b0011 &&
+            hp2_wstrb == 16'hFFFF, "HP2 AXI constants");
+        chk(!dep_sa_to_dma_pop && !dep_vpu_to_dma_pop, "DMA does not pop dependency FIFOs");
 
-        // T2: 2x2 LOAD, single beat per pixel
-        ddr_words[word_index(44'h1000)] = 128'h0000_0000_0000_0000_0000_0000_0000_00A0;
-        ddr_words[word_index(44'h1010)] = 128'h0000_0000_0000_0000_0000_0000_0000_00A1;
-        ddr_words[word_index(44'h1020)] = 128'h0000_0000_0000_0000_0000_0000_0000_00A2;
-        ddr_words[word_index(44'h1030)] = 128'h0000_0000_0000_0000_0000_0000_0000_00A3;
-        src_base   = 32'h1000;
-        row_stride = 16'h20;
-        tile_w = 8'd2;  tile_h = 8'd2;  ch_count = 8'd16;
+        // Testcase 2: basic 2 by 2 load should honor row_stride and tolerate AXI backpressure
+        reset_dut();
+        src_base = 32'h1000;
+        row_stride = 16'h40;
+        tile_w = 8'd2;
+        tile_h = 8'd2;
+        ch_count = 8'd16;
         fetch_mode = 3'b000;
         fork
             pulse_start();
-            hp0_read_serve(4);
+            hp0_read_serve(4, 3, 2);
         join
-        wait_ch0_idle();
-        chk(act_mem[0] == ddr_words[word_index(44'h1000)], "T2: pixel 0,0");
-        chk(act_mem[1] == ddr_words[word_index(44'h1010)], "T2: pixel 0,1");
-        chk(act_mem[2] == ddr_words[word_index(44'h1020)], "T2: pixel 1,0");
-        chk(act_mem[3] == ddr_words[word_index(44'h1030)], "T2: pixel 1,1");
-        chk(!dma_err, "T2: no error");
+        wait_ch0_idle("basic strided load");
+        chk(hp0_read_burst_count == 4, "basic load creates four AR bursts");
+        chk(act_done_count == 1 && dep_sa_push_count == 1, "basic load pulses act full and SA dependency once");
+        chk(hp0_ar_seen[0] == 44'h1000 && hp0_ar_seen[1] == 44'h1010 &&
+            hp0_ar_seen[2] == 44'h1040 && hp0_ar_seen[3] == 44'h1050,
+            "basic load AR addresses follow row_stride and ch_count");
+        chk(sram_model[0] == ddr_words[word_index(44'h1000)], "basic load word 0");
+        chk(sram_model[1] == ddr_words[word_index(44'h1010)], "basic load word 1");
+        chk(sram_model[2] == ddr_words[word_index(44'h1040)], "basic load word 2");
+        chk(sram_model[3] == ddr_words[word_index(44'h1050)], "basic load word 3");
 
-        // T3: padded 3-wide row (pad_left=1, pad_right=1)
+        // Testcase 3: ch_count of 32 should generate two-beat bursts per pixel
         reset_dut();
-        src_base   = 32'h2000;
-        row_stride = 16'h10;
-        tile_w = 8'd3;  tile_h = 8'd1;  ch_count = 8'd16;
-        pad_left = 4'd1; pad_right = 4'd1;
-        ddr_words[word_index(44'h2010)] = 128'hFACE_CAFE_DEAD_BEEF_0000_0000_0000_1234;
+        src_base = 32'h2000;
+        row_stride = 16'h80;
+        tile_w = 8'd1;
+        tile_h = 8'd2;
+        ch_count = 8'd32;
+        fetch_mode = 3'b000;
+        fork
+            pulse_start();
+            hp0_read_serve(2, 0, 1);
+        join
+        wait_ch0_idle("multi-beat load");
+        chk(hp0_read_burst_count == 2, "multi-beat load creates two bursts");
+        chk(hp0_arlen_seen[0] == 8'd1 && hp0_arlen_seen[1] == 8'd1, "multi-beat load ARLEN is 1");
+        chk(sram_model[0] == ddr_words[word_index(44'h2000)], "multi-beat first pixel beat 0");
+        chk(sram_model[1] == ddr_words[word_index(44'h2010)], "multi-beat first pixel beat 1");
+        chk(sram_model[2] == ddr_words[word_index(44'h2080)], "multi-beat second row beat 0");
+        chk(sram_model[3] == ddr_words[word_index(44'h2090)], "multi-beat second row beat 1");
+
+        // Testcase 4: full-edge padding should insert zeros without issuing DDR reads for padded pixels
+        reset_dut();
+        src_base = 32'h3000;
+        row_stride = 16'h30;
+        tile_w = 8'd3;
+        tile_h = 8'd3;
+        ch_count = 8'd16;
+        pad_top = 4'd1;
+        pad_bot = 4'd1;
+        pad_left = 4'd1;
+        pad_right = 4'd1;
+        fetch_mode = 3'b000;
         fork
             pulse_start();
             hp0_read_serve(1);
         join
-        wait_ch0_idle();
-        chk(act_mem[0] == 128'h0, "T3: left pad zero");
-        chk(act_mem[1] == ddr_words[word_index(44'h2010)], "T3: middle pixel");
-        chk(act_mem[2] == 128'h0, "T3: right pad zero");
-
-        // T4: WT_LOAD — 16-beat linear burst into Wt bank
-        reset_dut();
-        for (int i = 0; i < 16; i++) begin
-            ddr_words[word_index(44'h3000) + i] =
-                {120'hCAFE_0000_0000_0000_0000_0000_0000, 8'(i)};
+        wait_ch0_idle("padded load");
+        chk(hp0_read_burst_count == 1, "padding skips DDR reads for eight padded pixels");
+        chk(hp0_ar_seen[0] == 44'h3040, "padding fetches only the center pixel address");
+        for (int i = 0; i < 9; i++) begin
+            if (i == 4)
+                chk(sram_model[i] == ddr_words[word_index(44'h3040)], "center pixel is fetched");
+            else
+                chk(sram_model[i] == 128'h0, $sformatf("padding word %0d is zero", i));
         end
-        wt_src_base = 32'h3000;
+
+        // Testcase 5: CONCAT should fetch half the channels from each source for the same pixel
+        reset_dut();
+        src_base = 32'h4100;
+        concat_base = 32'h5100;
+        row_stride = 16'h40;
+        tile_w = 8'd1;
+        tile_h = 8'd1;
+        ch_count = 8'd32;
+        fetch_mode = 3'b010;
         fork
-            pulse_ch1_start();
-            hp1_read_serve(1);
+            pulse_start();
+            hp0_read_serve(2, 1, 0);
         join
-        wait_ch1_idle();
-        for (int i = 0; i < 16; i++) begin
-            chk(wt_mem[i] == ddr_words[word_index(44'h3000) + i], $sformatf("T4: wt beat %0d", i));
-        end
-        chk(dma_wt_bank_full === 1'b0, "T4: wt_bank_full deasserts after pulse");
+        wait_ch0_idle("concat load");
+        chk(hp0_read_burst_count == 2, "concat creates two half-channel bursts");
+        chk(hp0_arlen_seen[0] == 8'd0 && hp0_arlen_seen[1] == 8'd0, "concat half bursts are one beat each");
+        chk(hp0_ar_seen[0] == 44'h4100 && hp0_ar_seen[1] == 44'h5100, "concat uses base and concat_base");
+        chk(sram_model[0] == ddr_words[word_index(44'h4100)], "concat first half data");
+        chk(sram_model[1] == ddr_words[word_index(44'h5100)], "concat second half data");
 
-        // T5: DMA_STORE — single row, 2 beats
+        // Testcase 6: UPSAMPLE should emit each source pixel four times
         reset_dut();
-        out_mem[0] = 128'hDEAD_BEEF_CAFE_BABE_0123_4567_89AB_CDEF;
-        out_mem[1] = 128'h1111_2222_3333_4444_5555_6666_7777_8888;
-        src_base   = 32'h4000;        // DDR destination
+        src_base = 32'h6200;
         row_stride = 16'h20;
-        tile_w = 8'd2;  tile_h = 8'd1; ch_count = 8'd16;
-        fetch_mode = 3'b011;
-        fork
-            pulse_start();
-            hp2_write_serve();
-        join
-        wait_ch0_idle();
-        chk(store_count == 2, "T5: store wrote 2 beats");
-        chk(store_words[0] == out_mem[0], "T5: beat 0 = out_mem[0]");
-        chk(store_words[1] == out_mem[1], "T5: beat 1 = out_mem[1]");
-        chk(hp2_wstrb == 16'hFFFF, "T5: all byte lanes enabled");
-        chk(!dma_err, "T5: no error");
-
-        // T6: COEFF_LOAD — 4 channels = 2 beats; check M/S unpack
-        reset_dut();
-        // Beat 0: chan0 = M=32'hAABB_CCDD, S=4'h5 ; chan1 = M=32'h1122_3344, S=4'h7
-        ddr_words[word_index(44'h5000) + 0] = {
-            32'h1122_3344,   // chan1.M [127:96]
-            24'h0,           // chan1.pad [95:72]
-            4'h0, 4'h7,      // chan1.pad[71:68], chan1.S[67:64]
-            32'hAABB_CCDD,   // chan0.M [63:32]
-            24'h0,           // chan0.pad [31:8]
-            4'h0, 4'h5       // chan0.pad[7:4], chan0.S[3:0]
-        };
-        // Beat 1: chan2 / chan3
-        ddr_words[word_index(44'h5000) + 1] = {
-            32'h9999_8888, 24'h0, 4'h0, 4'h3,
-            32'h6666_5555, 24'h0, 4'h0, 4'h2
-        };
-        src_base       = 32'h5000;
-        coeff_ch_count = 10'd4;
-        fetch_mode     = 3'b100;
-        fork
-            pulse_start();
-            hp0_read_serve(1);  // single AR with arlen=1 -> 2 beats
-        join
-        wait_ch0_idle();
-        chk(coeff_mem[0] == {32'hAABB_CCDD, 4'h5}, "T6: chan0 {M,S}");
-        chk(coeff_mem[1] == {32'h1122_3344, 4'h7}, "T6: chan1 {M,S}");
-        chk(coeff_mem[2] == {32'h6666_5555, 4'h2}, "T6: chan2 {M,S}");
-        chk(coeff_mem[3] == {32'h9999_8888, 4'h3}, "T6: chan3 {M,S}");
-
-        // T7: LUT_LOAD — 16 beats, 256 bytes; spot-check byte 0/15/128/255
-        reset_dut();
-        for (int i = 0; i < 16; i++) begin
-            ddr_words[word_index(44'h6000) + i] = {
-                8'(i*16+15), 8'(i*16+14), 8'(i*16+13), 8'(i*16+12),
-                8'(i*16+11), 8'(i*16+10), 8'(i*16+9),  8'(i*16+8),
-                8'(i*16+7),  8'(i*16+6),  8'(i*16+5),  8'(i*16+4),
-                8'(i*16+3),  8'(i*16+2),  8'(i*16+1),  8'(i*16+0)
-            };
-        end
-        src_base   = 32'h6000;
-        lut_sel    = 1'b1;
-        fetch_mode = 3'b101;
-        fork
-            pulse_start();
-            hp0_read_serve(1);  // single AR with arlen=15 -> 16 beats
-        join
-        wait_ch0_idle();
-        chk(lut_mem[0]   == 8'd0,   "T7: lut[0]");
-        chk(lut_mem[15]  == 8'd15,  "T7: lut[15]");
-        chk(lut_mem[128] == 8'd128, "T7: lut[128]");
-        chk(lut_mem[255] == 8'd255, "T7: lut[255]");
-        chk(sram_lut_sel == 1'b1, "T7: lut_sel held");
-
-        // T8: UPSAMPLE — 1x1 src emits 2x2 (4 beats from one AR)
-        reset_dut();
-        ddr_words[word_index(44'h7000)] = 128'hFEED_FACE_DEAD_BEEF_AABB_CCDD_1122_3344;
-        src_base   = 32'h7000;
-        row_stride = 16'h10;
-        tile_w = 8'd1;  tile_h = 8'd1; ch_count = 8'd16;
+        tile_w = 8'd1;
+        tile_h = 8'd1;
+        ch_count = 8'd16;
         fetch_mode = 3'b001;
         fork
             pulse_start();
-            // src 1x1 with ch_count=16 -> 1 beat per emission, 4 emissions
             hp0_read_serve(4);
         join
-        wait_ch0_idle();
+        wait_ch0_idle("upsample load");
+        chk(hp0_read_burst_count == 4, "upsample performs four reads for one source pixel");
         for (int i = 0; i < 4; i++) begin
-            chk(act_mem[i] == ddr_words[word_index(44'h7000)],
-                $sformatf("T8: upsample slot %0d", i));
+            chk(hp0_ar_seen[i] == 44'h6200, $sformatf("upsample read %0d uses the same source address", i));
+            chk(sram_model[i] == ddr_words[word_index(44'h6200)], $sformatf("upsample write %0d duplicates source", i));
         end
 
-        // T9: CONCAT — 1 pixel, ch_count=32 -> 2 beats per phase from two bases
+        // Testcase 7: a start pulse while Ch0 is busy should be ignored
         reset_dut();
-        ddr_words[word_index(44'h8000)] = 128'h1111_1111_1111_1111_1111_1111_1111_1111;
-        ddr_words[word_index(44'h8010)] = 128'h2222_2222_2222_2222_2222_2222_2222_2222;
-        ddr_words[word_index(44'h9000)] = 128'h3333_3333_3333_3333_3333_3333_3333_3333;
-        ddr_words[word_index(44'h9010)] = 128'h4444_4444_4444_4444_4444_4444_4444_4444;
-        src_base    = 32'h8000;
-        concat_base = 32'h9000;
-        row_stride  = 16'h10;
-        tile_w = 8'd1;  tile_h = 8'd1; ch_count = 8'd32;  // r_beats=2 -> r_beats/2=1 beat per phase
-        fetch_mode  = 3'b010;
+        src_base = 32'h7000;
+        row_stride = 16'h10;
+        tile_w = 8'd3;
+        tile_h = 8'd1;
+        ch_count = 8'd16;
+        fetch_mode = 3'b000;
         fork
-            pulse_start();
-            // 1 pixel: 1 burst from base, 1 burst from concat_base, 1 beat each
-            hp0_read_serve(2);
+            begin
+                pulse_start();
+                repeat (3) @(negedge clk);
+                start = 1'b1;
+                @(negedge clk);
+                start = 1'b0;
+            end
+            hp0_read_serve(3, 4, 0);
         join
-        wait_ch0_idle();
-        chk(act_mem[0] == ddr_words[word_index(44'h8000)], "T9: concat phase 0 -> base");
-        chk(act_mem[1] == ddr_words[word_index(44'h9000)], "T9: concat phase 1 -> concat_base");
+        wait_ch0_idle("busy start ignore");
+        repeat (5) @(posedge clk);
+        chk(act_done_count == 1 && hp0_read_burst_count == 3, "busy start did not launch a second transaction");
 
-        // T10: HP0 read SLVERR -> dma_err sticky
+        // Testcase 8: read response errors on HP0 should set dma_err sticky while still completing
         reset_dut();
-        src_base = 32'hA000;
-        tile_w = 8'd1;  tile_h = 8'd1;  ch_count = 8'd16;
+        src_base = 32'h8000;
+        tile_w = 8'd1;
+        tile_h = 8'd1;
+        ch_count = 8'd16;
         fetch_mode = 3'b000;
         fork
             pulse_start();
-            hp0_read_serve(1, 2'b10);
+            hp0_read_serve(1, 0, 0, 2'b10);
         join
-        wait_ch0_idle();
-        chk(dma_err, "T10: SLVERR sets dma_err sticky");
+        wait_ch0_idle("HP0 read error");
+        chk(dma_err, "HP0 SLVERR sets dma_err");
+        repeat (5) @(posedge clk);
+        chk(dma_err, "dma_err remains sticky after HP0 read error");
 
-        // T11: HP2 write BRESP error -> dma_err sticky
+        // Testcase 9: COEFF_LOAD should unpack two coefficient entries per beat
         reset_dut();
-        src_base = 32'hB000;
-        tile_w = 8'd1;  tile_h = 8'd1;  ch_count = 8'd16;
-        fetch_mode = 3'b011;
+        src_base = 32'h9000;
+        coeff_ch_count = 10'd4;
+        fetch_mode = 3'b100;
+        ddr_words[word_index(44'h9000)] = make_coeff_word(0);
+        ddr_words[word_index(44'h9010)] = make_coeff_word(1);
         fork
             pulse_start();
-            hp2_write_serve(2'b10);
+            hp0_read_serve(1, 2, 1);
         join
-        wait_ch0_idle();
-        chk(dma_err, "T11: BRESP error sets dma_err sticky");
+        wait_ch0_idle("coeff load");
+        chk(hp0_read_burst_count == 1 && hp0_ar_seen[0] == 44'h9000 && hp0_arlen_seen[0] == 8'd1,
+            "coeff load issues one two-beat burst");
+        chk(coeff_model[0] == {32'h1000_0000, 4'h0}, "coeff entry 0 unpacked");
+        chk(coeff_model[1] == {32'h1000_0001, 4'h1}, "coeff entry 1 unpacked");
+        chk(coeff_model[2] == {32'h1000_0002, 4'h2}, "coeff entry 2 unpacked");
+        chk(coeff_model[3] == {32'h1000_0003, 4'h3}, "coeff entry 3 unpacked");
+
+        // Testcase 10: LUT_LOAD should drain sixteen 128-bit beats into 256 byte entries
+        reset_dut();
+        src_base = 32'hA000;
+        fetch_mode = 3'b101;
+        lut_sel = 1'b1;
+        fork
+            pulse_start();
+            hp0_read_serve(1, 1, 1);
+        join
+        wait_ch0_idle("lut load");
+        chk(hp0_read_burst_count == 1 && hp0_ar_seen[0] == 44'hA000 && hp0_arlen_seen[0] == 8'd15,
+            "lut load issues one sixteen-beat burst");
+        chk(sram_lut_sel == 1'b1, "lut select is held from descriptor");
+        chk(lut_model[0] == ddr_words[word_index(44'hA000)][7:0], "lut byte 0");
+        chk(lut_model[15] == ddr_words[word_index(44'hA000)][127:120], "lut byte 15");
+        chk(lut_model[16] == ddr_words[word_index(44'hA010)][7:0], "lut byte 16");
+        chk(lut_model[255] == ddr_words[word_index(44'hA0F0)][127:120], "lut byte 255");
+
+        // Testcase 11: Ch1 WT_LOAD should fetch a full 16-beat weight tile with backpressure
+        reset_dut();
+        wt_src_base = 32'hB000;
+        fork
+            pulse_ch1_start();
+            hp1_read_serve(3, 2);
+        join
+        wait_ch1_idle("weight load");
+        chk(hp1_read_burst_count == 1 && hp1_ar_seen[0] == 44'hB000 && hp1_arlen_seen[0] == 8'd15,
+            "weight load issues one sixteen-beat burst");
+        chk(wt_done_count == 1, "weight load pulses wt bank full once");
+        for (int i = 0; i < 16; i++) begin
+            chk(wt_model[i] == wt_ddr_words[word_index(44'hB000) + i],
+                $sformatf("weight word %0d written", i));
+        end
+
+        // Testcase 12: HP1 read errors should set dma_err sticky
+        reset_dut();
+        wt_src_base = 32'hC000;
+        fork
+            pulse_ch1_start();
+            hp1_read_serve(0, 0, 2'b11);
+        join
+        wait_ch1_idle("HP1 read error");
+        chk(dma_err, "HP1 DECERR sets dma_err");
+        repeat (5) @(posedge clk);
+        chk(dma_err, "dma_err remains sticky after HP1 read error");
+
+        // Testcase 13: STORE should emit one row burst per tile row with full strobes and row_stride addresses
+        reset_dut();
+        src_base = 32'hD000;
+        row_stride = 16'h80;
+        tile_w = 8'd2;
+        tile_h = 8'd2;
+        ch_count = 8'd32;
+        fetch_mode = 3'b011;
+        for (int i = 0; i < 8; i++) sram_model[i] = 128'hD000_0000_0000_0000 + i;
+        fork
+            pulse_start();
+            hp2_write_serve(2, 2, 1);
+        join
+        wait_ch0_idle("store");
+        chk(hp2_write_burst_count == 2, "store issues one AW per row");
+        chk(hp2_aw_seen[0] == 44'hD000 && hp2_aw_seen[1] == 44'hD080, "store AW addresses follow row_stride");
+        chk(hp2_awlen_seen[0] == 8'd3 && hp2_awlen_seen[1] == 8'd3, "store row bursts contain four beats");
+        chk(store_count == 8, "store writes eight beats total");
+        for (int i = 0; i < 8; i++) begin
+            chk(store_words[i] == (128'hD000_0000_0000_0000 + i), $sformatf("store beat %0d data", i));
+            chk(store_last_seen[i] == ((i == 3) || (i == 7)), $sformatf("store beat %0d last flag", i));
+        end
+        chk(store_done_count == 1 && dep_vpu_push_count == 1, "store pulses done and VPU dependency once");
+        chk(!dma_err, "store completes without error");
+
+        // Testcase 14: HP2 write response errors should set dma_err sticky after store completion
+        reset_dut();
+        src_base = 32'hE000;
+        tile_w = 8'd1;
+        tile_h = 8'd1;
+        ch_count = 8'd16;
+        fetch_mode = 3'b011;
+        sram_model[0] = 128'hE0E0_E0E0_E0E0_E0E0_E0E0_E0E0_E0E0_E0E0;
+        fork
+            pulse_start();
+            hp2_write_serve(1, 0, 0, 2'b10);
+        join
+        wait_ch0_idle("HP2 write error");
+        chk(dma_err, "HP2 BRESP error sets dma_err");
+        repeat (5) @(posedge clk);
+        chk(dma_err, "dma_err remains sticky after HP2 write error");
 
         $display("DMA_tb errors: %0d", err_cnt);
         if (err_cnt == 0) $display("PASS"); else $fatal(1, "FAIL");
@@ -511,7 +771,7 @@ module DMA_tb();
     end
 
     initial begin
-        #500000;
+        #1000000;
         $fatal(1, "TIMEOUT");
     end
 

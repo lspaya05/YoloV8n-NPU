@@ -76,6 +76,10 @@ module SA_Block (
     logic [123:0] sa_dout;
     logic         sa_fifo_empty;
     logic         sa_fifo_rd_en;
+    logic         sa_fifo_pop;
+    logic         sa_fifo_pop_d;
+    logic [123:0] sa_issue_dout;
+    logic         sa_issue_valid;
 
     FIFO #(
         .USE_XILINX_XPM (FIFO_USE_XPM),
@@ -85,7 +89,7 @@ module SA_Block (
         .clk    (clk),
         .rst    (rst),
         .wr_en  (disp_push),
-        .rd_en  (sa_fifo_rd_en),
+        .rd_en  (sa_fifo_pop),
         .din    (disp_payload),
         .dout   (sa_dout),
         .full   (disp_full),
@@ -102,7 +106,8 @@ module SA_Block (
     logic sa_done_pulse;
 
     assign deps_ready           = ~dep_dma_to_sa_empty & ~dep_psb_to_sa_empty;
-    assign sa_empty_to_dispatch = sa_fifo_empty | ~deps_ready;
+    assign sa_empty_to_dispatch = ~sa_issue_valid | ~deps_ready;
+    assign sa_fifo_pop          = ~sa_fifo_empty & ~sa_issue_valid;
     assign sa_fifo_rd_en        = sa_rd_en_from_dispatch;
 
     // Pop both upstream tokens on the cycle Dispatch_SA actually consumes an
@@ -117,6 +122,23 @@ module SA_Block (
     assign dep_sa_to_dma_push = sa_done_pulse;
     assign dep_sa_to_psb_push = sa_done_pulse;
 
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            sa_fifo_pop_d  <= 1'b0;
+            sa_issue_dout  <= '0;
+            sa_issue_valid <= 1'b0;
+        end else begin
+            sa_fifo_pop_d <= sa_fifo_pop;
+            if (sa_rd_en_from_dispatch) begin
+                sa_issue_valid <= 1'b0;
+            end
+            if (sa_fifo_pop_d) begin
+                sa_issue_dout  <= sa_dout;
+                sa_issue_valid <= 1'b1;
+            end
+        end
+    end
+
     // -------------------------------------------------------------------------
     // Dispatch_SA — drives SRAMHub read addresses and SA_top start.
     // -------------------------------------------------------------------------
@@ -128,7 +150,7 @@ module SA_Block (
     Dispatch_SA u_dispatch_sa (
         .clk              (clk),
         .rst              (rst),
-        .fifo_dout        (sa_dout),
+        .fifo_dout        (sa_issue_dout),
         .fifo_empty       (sa_empty_to_dispatch),
         .fifo_rd_en       (sa_rd_en_from_dispatch),
         .sa_done          (sa_done_w),

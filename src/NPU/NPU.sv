@@ -206,6 +206,8 @@ module NPU (
     logic dma_ch0_idle_w, dma_ch1_idle_w;
     logic dma_act_bank_full_w;
     logic dma_wt_bank_full_w;
+    logic dma_store_done_w;
+    logic seq_irq_done_w;
     always_comb begin
         units_done           = 6'b0;
         units_done[UNIT_DMA] = dma_ch0_idle_w & dma_ch1_idle_w;
@@ -402,8 +404,6 @@ module NPU (
     // DMA Output-bank read port + STORE done (Phase 5).
     logic [$clog2(RES_BANK_DEPTH)-1:0] dma_sram_raddr_w;
     logic [127:0]                      dma_sram_rdata_w;
-    logic                              dma_store_done_w;
-    logic                              seq_irq_done_w;
 
     // wt_* read master now driven by DMA HP1 (Phase 1 ties low inside DMA.sv;
     // Phase 4 brings up the Ch1 FSM). No top-level tie-offs needed.

@@ -27,8 +27,8 @@ module DepFIFO #(
             mem <= '0;
         end else begin
             case ({push, pop})
-                2'b10:   mem <= mem + 1;
-                2'b01:   mem <= mem - 1;
+                2'b10:   if (!full)  mem <= mem + 1;
+                2'b01:   if (!empty) mem <= mem - 1;
                 default: mem <= mem;
             endcase
         end

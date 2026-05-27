@@ -63,27 +63,37 @@ module FIFO #(
 
             logic [PTR_WIDTH:0] wr_ptr;
             logic [PTR_WIDTH:0] rd_ptr;
+            logic [PTR_WIDTH:0] count;
+
+            wire do_write = wr_en && (!full || rd_en);
+            wire do_read  = rd_en && !empty;
 
             always_ff @(posedge clk) begin
                 if (rst) begin
                     wr_ptr <= '0;
                     rd_ptr <= '0;
+                    count  <= '0;
                     dout   <= '0;
                 end else begin
-                    if (wr_en && !full) begin
+                    if (do_write) begin
                         memory_array[wr_ptr[PTR_WIDTH-1:0]] <= din;
                         wr_ptr <= wr_ptr + 1'b1;
                     end
-                    if (rd_en && !empty) begin
+                    if (do_read) begin
                         dout   <= memory_array[rd_ptr[PTR_WIDTH-1:0]];
                         rd_ptr <= rd_ptr + 1'b1;
                     end
+
+                    case ({do_write, do_read})
+                        2'b10: count <= count + 1'b1;
+                        2'b01: count <= count - 1'b1;
+                        default: count <= count;
+                    endcase
                 end
             end
 
-            assign empty = (wr_ptr == rd_ptr);
-            assign full  = (wr_ptr[PTR_WIDTH-1:0] == rd_ptr[PTR_WIDTH-1:0]) &&
-                           (wr_ptr[PTR_WIDTH] != rd_ptr[PTR_WIDTH]);
+            assign empty = (count == '0);
+            assign full  = (count == DEPTH);
 
         end
     endgenerate

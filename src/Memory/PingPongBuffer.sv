@@ -6,7 +6,7 @@
 //     - DATA_BITWIDTH: data bus width in bits, should match DMA/HP port width
 // Inputs:
 //     - clk: System clock
-//     - rst: Active-low async reset
+//     - rst: Active-high synchronous reset
 //     - w_data: DATA_BITWIDTH-bit write data from DMA into the inactive bank
 //     - w_addr: log2(BUFFER_DEPTH)-bit write address for DMA port
 //     - write_en: Write enable for DMA port
@@ -38,7 +38,7 @@ logic bank_sel;   // 0: bank A is SA-side, bank B is DMA-side
 
 // Swap when both sides signal done
 always_ff @(posedge clk) begin
-    if (!rst) bank_sel <= 0;
+    if (rst) bank_sel <= 0;
     else if (bank_full && bank_read) bank_sel <= ~bank_sel;
 end
 

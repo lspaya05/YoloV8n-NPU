@@ -479,7 +479,7 @@ module Sequencer_tb;
                 chk(fifo_push == 6'b0, "T11: no push during FENCE");
             end
             unit_done <= 6'b00_0110;
-            repeat(4) @(posedge clk);
+            @(posedge clk);
             unit_done <= 6'b0;
             // FSM now S_IDLE; wait for irq_done pulse when DMA signals done
             repeat(4) @(posedge clk);

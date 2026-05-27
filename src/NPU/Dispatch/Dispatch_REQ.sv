@@ -67,10 +67,12 @@ module Dispatch_REQ #(
     npu_requant_payload_t req_payload;
     assign req_payload = npu_requant_payload_t'(fifo_dout[111:0]);
 
-    typedef enum logic [1:0] {
+    typedef enum logic [2:0] {
         S_IDLE,
         S_LOAD_COEFF,
-        S_RUN
+        S_RUN,
+        S_WRITE,
+        S_WRITE_DONE
     } state_e;
 
     state_e          state;
@@ -151,15 +153,27 @@ module Dispatch_REQ #(
                     req_mode <= 2'b01;  // hold FROM_PSB
                     if (req_valid_o) begin
                         vpu_out_wdata <= req_data_o_lo;
-                        vpu_out_wen   <= 1'b1;
-                        vpu_out_waddr <= vpu_out_waddr + 1'b1;
-                        beat_count    <= beat_count + 10'h1;
+                        state         <= S_WRITE;
+                    end
+                end
 
-                        if ((beat_count + 10'h1) == target_count) begin
-                            unit_done <= 1'b1;
-                            req_mode  <= 2'b00;
-                            state     <= S_IDLE;
-                        end
+                S_WRITE: begin
+                    req_mode      <= 2'b01;
+                    vpu_out_wen   <= 1'b1;
+                    state         <= S_WRITE_DONE;
+                end
+
+                S_WRITE_DONE: begin
+                    req_mode      <= 2'b01;
+                    vpu_out_waddr <= vpu_out_waddr + 1'b1;
+                    beat_count    <= beat_count + 10'h1;
+
+                    if ((beat_count + 10'h1) == target_count) begin
+                        unit_done <= 1'b1;
+                        req_mode  <= 2'b00;
+                        state     <= S_IDLE;
+                    end else begin
+                        state <= S_RUN;
                     end
                 end
 

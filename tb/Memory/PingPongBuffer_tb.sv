@@ -83,12 +83,12 @@ module PingPongBuffer_tb;
 
     // ---- Reset ---------------------------------------------------------------
     task automatic do_reset();
-        rst = 1'b0;  // active-low: assert reset
+        rst = 1'b1;  // active-high: assert reset
         write_en = 0; bank_full = 0; bank_read = 0;
         w_addr = '0; w_data = '0; r_addr = '0;
         repeat (RESET_CYC) @(posedge clk);
         @(negedge clk);
-        rst = 1'b1;  // deassert
+        rst = 1'b0;  // deassert
         @(negedge clk);
     endtask
 

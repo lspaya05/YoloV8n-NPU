@@ -65,6 +65,10 @@ module PSB_Block (
     logic [123:0] psb_dout;
     logic         psb_fifo_empty;
     logic         psb_fifo_rd_en;
+    logic         psb_fifo_pop;
+    logic         psb_fifo_pop_d;
+    logic [123:0] psb_issue_dout;
+    logic         psb_issue_valid;
 
     FIFO #(
         .USE_XILINX_XPM (FIFO_USE_XPM),
@@ -74,7 +78,7 @@ module PSB_Block (
         .clk    (clk),
         .rst    (rst),
         .wr_en  (disp_push),
-        .rd_en  (psb_fifo_rd_en),
+        .rd_en  (psb_fifo_pop),
         .din    (disp_payload),
         .dout   (psb_dout),
         .full   (disp_full),
@@ -90,7 +94,8 @@ module PSB_Block (
     logic psb_done_pulse;
 
     assign deps_ready            = ~dep_sa_to_psb_empty & ~dep_req_to_psb_empty;
-    assign psb_empty_to_dispatch = psb_fifo_empty | ~deps_ready;
+    assign psb_empty_to_dispatch = ~psb_issue_valid | ~deps_ready;
+    assign psb_fifo_pop          = ~psb_fifo_empty & ~psb_issue_valid;
     assign psb_fifo_rd_en        = psb_rd_en_from_dispatch;
 
     assign dep_sa_to_psb_pop  = psb_rd_en_from_dispatch;
@@ -98,6 +103,23 @@ module PSB_Block (
 
     assign dep_psb_to_sa_push  = psb_done_pulse;
     assign dep_psb_to_req_push = psb_done_pulse;
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            psb_fifo_pop_d  <= 1'b0;
+            psb_issue_dout  <= '0;
+            psb_issue_valid <= 1'b0;
+        end else begin
+            psb_fifo_pop_d <= psb_fifo_pop;
+            if (psb_rd_en_from_dispatch) begin
+                psb_issue_valid <= 1'b0;
+            end
+            if (psb_fifo_pop_d) begin
+                psb_issue_dout  <= psb_dout;
+                psb_issue_valid <= 1'b1;
+            end
+        end
+    end
 
     // -------------------------------------------------------------------------
     // Dispatch_PSB
@@ -112,7 +134,7 @@ module PSB_Block (
     Dispatch_PSB u_dispatch_psb (
         .clk            (clk),
         .rst            (rst),
-        .fifo_dout      (psb_dout),
+        .fifo_dout      (psb_issue_dout),
         .fifo_empty     (psb_empty_to_dispatch),
         .fifo_rd_en     (psb_rd_en_from_dispatch),
         .psb_busy       (psb_busy_w),
