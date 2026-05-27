@@ -1,4 +1,4 @@
-# DMA_wave.do — wave configuration for DMA_testbench
+# DMA_wave.do — wave configuration for DMA_tb (Phase 1-7 port set)
 # Run: do scripts/sim/runlab.do DMA
 
 quietly WaveActivateNextPane {} 0
@@ -7,171 +7,143 @@ quietly WaveActivateNextPane {} 0
 # Clock / Reset
 # -------------------------------------------------------------------------
 add wave -divider "Clock / Reset"
-add wave -radix binary /DMA_testbench/clk
-add wave -radix binary /DMA_testbench/rst
+add wave -radix binary /DMA_tb/clk
+add wave -radix binary /DMA_tb/rst
 
 # -------------------------------------------------------------------------
-# Status outputs
+# Status
 # -------------------------------------------------------------------------
 add wave -divider "Status"
-add wave -radix binary /DMA_testbench/unit_done
-add wave -radix binary /DMA_testbench/dma_err
-add wave -radix binary /DMA_testbench/store_done
+add wave -radix binary /DMA_tb/ch0_idle
+add wave -radix binary /DMA_tb/ch1_idle
+add wave -radix binary /DMA_tb/dma_act_bank_full
+add wave -radix binary /DMA_tb/dma_wt_bank_full
+add wave -radix binary /DMA_tb/dma_store_done
+add wave -radix binary /DMA_tb/dma_err
 
 # -------------------------------------------------------------------------
-# Ch0 — DMA_LOAD
+# Ch0 descriptor + control
 # -------------------------------------------------------------------------
-add wave -divider "Ch0 FIFO (DMA_LOAD)"
-add wave -radix binary  /DMA_testbench/ch0_empty
-add wave -radix binary  /DMA_testbench/ch0_rd
-add wave -radix hex     /DMA_testbench/ch0_rdata
-
-add wave -divider "Ch0 FSM"
-add wave -radix symbolic /DMA_testbench/dut/state
-add wave -radix binary   /DMA_testbench/dut/r_fetch_mode
-add wave -radix unsigned /DMA_testbench/dut/cur_h
-add wave -radix unsigned /DMA_testbench/dut/cur_w
-add wave -radix binary   /DMA_testbench/dut/is_pad
-
-add wave -divider "HP0 Read Master (DMA_LOAD)"
-add wave -radix hex      /DMA_testbench/hp0_araddr
-add wave -radix unsigned /DMA_testbench/hp0_arlen
-add wave -radix binary   /DMA_testbench/hp0_arvalid
-add wave -radix binary   /DMA_testbench/hp0_arready
-add wave -radix hex      /DMA_testbench/hp0_rdata
-add wave -radix binary   /DMA_testbench/hp0_rvalid
-add wave -radix binary   /DMA_testbench/hp0_rlast
-add wave -radix binary   /DMA_testbench/hp0_rready
-add wave -radix binary   /DMA_testbench/hp0_rresp
-
-add wave -divider "Act Bank Write"
-add wave -radix unsigned /DMA_testbench/dma_act_waddr
-add wave -radix hex      /DMA_testbench/dma_act_wdata
-add wave -radix binary   /DMA_testbench/dma_act_wen
-add wave -radix binary   /DMA_testbench/dma_act_bank_full
+add wave -divider "Ch0 Descriptor"
+add wave -radix hex      /DMA_tb/src_base
+add wave -radix hex      /DMA_tb/row_stride
+add wave -radix unsigned /DMA_tb/tile_w
+add wave -radix unsigned /DMA_tb/tile_h
+add wave -radix unsigned /DMA_tb/ch_count
+add wave -radix binary   /DMA_tb/fetch_mode
+add wave -radix hex      /DMA_tb/concat_base
+add wave -radix unsigned /DMA_tb/coeff_ch_count
+add wave -radix binary   /DMA_tb/lut_sel
+add wave -radix binary   /DMA_tb/start
 
 # -------------------------------------------------------------------------
-# Ch1 — WT_LOAD
+# Ch0 FSM internals
 # -------------------------------------------------------------------------
-add wave -divider "Ch1 FIFO (WT_LOAD)"
-add wave -radix binary  /DMA_testbench/ch1_empty
-add wave -radix binary  /DMA_testbench/ch1_rd
-add wave -radix hex     /DMA_testbench/ch1_rdata
+add wave -divider "Ch0 Load FSM"
+add wave -radix symbolic /DMA_tb/dut/state
+add wave -radix binary   /DMA_tb/dut/r_fetch_mode
+add wave -radix unsigned /DMA_tb/dut/cur_h
+add wave -radix unsigned /DMA_tb/dut/cur_w
+add wave -radix binary   /DMA_tb/dut/is_pad
+add wave -radix binary   /DMA_tb/dut/concat_phase
+add wave -radix binary   /DMA_tb/dut/repeat_w
+add wave -radix binary   /DMA_tb/dut/repeat_h
 
-add wave -divider "Ch1 FSM"
-add wave -radix symbolic /DMA_testbench/dut/ch1_state
+add wave -divider "Ch0 Store FSM"
+add wave -radix symbolic /DMA_tb/dut/store_state
+add wave -radix unsigned /DMA_tb/dut/store_cur_h
+add wave -radix unsigned /DMA_tb/dut/store_beat_idx
 
+# -------------------------------------------------------------------------
+# HP0 Read Master
+# -------------------------------------------------------------------------
+add wave -divider "HP0 Read Master"
+add wave -radix hex      /DMA_tb/hp0_araddr
+add wave -radix unsigned /DMA_tb/hp0_arlen
+add wave -radix binary   /DMA_tb/hp0_arvalid
+add wave -radix binary   /DMA_tb/hp0_arready
+add wave -radix hex      /DMA_tb/hp0_rdata
+add wave -radix binary   /DMA_tb/hp0_rvalid
+add wave -radix binary   /DMA_tb/hp0_rlast
+add wave -radix binary   /DMA_tb/hp0_rready
+add wave -radix binary   /DMA_tb/hp0_rresp
+
+# -------------------------------------------------------------------------
+# HP1 Read Master (WT_LOAD)
+# -------------------------------------------------------------------------
 add wave -divider "HP1 Read Master (WT_LOAD)"
-add wave -radix hex      /DMA_testbench/hp1_araddr
-add wave -radix unsigned /DMA_testbench/hp1_arlen
-add wave -radix binary   /DMA_testbench/hp1_arvalid
-add wave -radix binary   /DMA_testbench/hp1_arready
-add wave -radix hex      /DMA_testbench/hp1_rdata
-add wave -radix binary   /DMA_testbench/hp1_rvalid
-add wave -radix binary   /DMA_testbench/hp1_rlast
-add wave -radix binary   /DMA_testbench/hp1_rready
-
-add wave -divider "Weight Bank Write"
-add wave -radix unsigned /DMA_testbench/dma_wt_waddr
-add wave -radix hex      /DMA_testbench/dma_wt_wdata
-add wave -radix binary   /DMA_testbench/dma_wt_wen
-add wave -radix binary   /DMA_testbench/dma_wt_bank_full
+add wave -radix symbolic /DMA_tb/dut/ch1_state
+add wave -radix hex      /DMA_tb/wt_src_base
+add wave -radix binary   /DMA_tb/ch1_start
+add wave -radix hex      /DMA_tb/hp1_araddr
+add wave -radix unsigned /DMA_tb/hp1_arlen
+add wave -radix binary   /DMA_tb/hp1_arvalid
+add wave -radix binary   /DMA_tb/hp1_arready
+add wave -radix hex      /DMA_tb/hp1_rdata
+add wave -radix binary   /DMA_tb/hp1_rvalid
+add wave -radix binary   /DMA_tb/hp1_rlast
+add wave -radix binary   /DMA_tb/hp1_rready
 
 # -------------------------------------------------------------------------
-# HP3 arbiter (shared RES/COEFF/LUT)
+# HP2 Write Master (DMA_STORE)
 # -------------------------------------------------------------------------
-add wave -divider "HP3 Arbiter (Ch2>Ch3>Ch4)"
-add wave -radix binary /DMA_testbench/dut/ch2_hp3_req
-add wave -radix binary /DMA_testbench/dut/ch3_hp3_req
-add wave -radix binary /DMA_testbench/dut/ch4_hp3_req
-
-add wave -divider "HP3 Read Master (arbitrated)"
-add wave -radix hex      /DMA_testbench/hp3_araddr
-add wave -radix unsigned /DMA_testbench/hp3_arlen
-add wave -radix binary   /DMA_testbench/hp3_arvalid
-add wave -radix binary   /DMA_testbench/hp3_arready
-add wave -radix hex      /DMA_testbench/hp3_rdata
-add wave -radix binary   /DMA_testbench/hp3_rvalid
-add wave -radix binary   /DMA_testbench/hp3_rlast
-add wave -radix binary   /DMA_testbench/hp3_rready
-
-# -------------------------------------------------------------------------
-# Ch2 — RES_LOAD
-# -------------------------------------------------------------------------
-add wave -divider "Ch2 FSM (RES_LOAD)"
-add wave -radix binary   /DMA_testbench/ch2_empty
-add wave -radix binary   /DMA_testbench/ch2_rd
-add wave -radix symbolic /DMA_testbench/dut/ch2_state
-
-add wave -divider "Residual Bank Write"
-add wave -radix unsigned /DMA_testbench/dma_res_waddr
-add wave -radix hex      /DMA_testbench/dma_res_wdata
-add wave -radix binary   /DMA_testbench/dma_res_wen
+add wave -divider "HP2 Write Master (DMA_STORE)"
+add wave -radix hex      /DMA_tb/hp2_awaddr
+add wave -radix unsigned /DMA_tb/hp2_awlen
+add wave -radix binary   /DMA_tb/hp2_awvalid
+add wave -radix binary   /DMA_tb/hp2_awready
+add wave -radix hex      /DMA_tb/hp2_wdata
+add wave -radix hex      /DMA_tb/hp2_wstrb
+add wave -radix binary   /DMA_tb/hp2_wlast
+add wave -radix binary   /DMA_tb/hp2_wvalid
+add wave -radix binary   /DMA_tb/hp2_wready
+add wave -radix binary   /DMA_tb/hp2_bresp
+add wave -radix binary   /DMA_tb/hp2_bvalid
+add wave -radix binary   /DMA_tb/hp2_bready
 
 # -------------------------------------------------------------------------
-# Ch3 — COEFF_LOAD
+# SRAM ports
 # -------------------------------------------------------------------------
-add wave -divider "Ch3 FSM (COEFF_LOAD)"
-add wave -radix binary   /DMA_testbench/ch3_empty
-add wave -radix binary   /DMA_testbench/ch3_rd
-add wave -radix symbolic /DMA_testbench/dut/ch3_state
-add wave -radix unsigned /DMA_testbench/dut/r3_slot
-add wave -radix hex      /DMA_testbench/dut/ch3_beat_buf
-add wave -radix hex      /DMA_testbench/dut/coeff_extract
+add wave -divider "Act Bank Write"
+add wave -radix unsigned /DMA_tb/sram_waddr
+add wave -radix hex      /DMA_tb/sram_wdata
+add wave -radix binary   /DMA_tb/sram_wen
+
+add wave -divider "Wt Bank Write"
+add wave -radix unsigned /DMA_tb/sram_wt_waddr
+add wave -radix hex      /DMA_tb/sram_wt_wdata
+add wave -radix binary   /DMA_tb/sram_wt_wen
 
 add wave -divider "Coeff BRAM Write"
-add wave -radix unsigned /DMA_testbench/dma_coeff_waddr
-add wave -radix hex      /DMA_testbench/dma_coeff_wdata
-add wave -radix binary   /DMA_testbench/dma_coeff_wen
+add wave -radix unsigned /DMA_tb/sram_coeff_waddr
+add wave -radix hex      /DMA_tb/sram_coeff_wdata
+add wave -radix binary   /DMA_tb/sram_coeff_wen
+
+add wave -divider "LUT BRAM Write"
+add wave -radix unsigned /DMA_tb/sram_lut_waddr
+add wave -radix hex      /DMA_tb/sram_lut_wdata
+add wave -radix binary   /DMA_tb/sram_lut_wen
+add wave -radix binary   /DMA_tb/sram_lut_sel
+
+add wave -divider "Output Bank Read (STORE)"
+add wave -radix unsigned /DMA_tb/sram_raddr
+add wave -radix hex      /DMA_tb/sram_rdata
 
 # -------------------------------------------------------------------------
-# Ch4 — LUT_LOAD
+# Dep ports
 # -------------------------------------------------------------------------
-add wave -divider "Ch4 FSM (LUT_LOAD)"
-add wave -radix binary   /DMA_testbench/ch4_empty
-add wave -radix binary   /DMA_testbench/ch4_rd
-add wave -radix symbolic /DMA_testbench/dut/ch4_state
-add wave -radix unsigned /DMA_testbench/dut/lut_waddr_r
-add wave -radix binary   /DMA_testbench/dut/r4_lut_sel
-
-add wave -divider "LUT Bank Write"
-add wave -radix unsigned /DMA_testbench/dma_lut_waddr
-add wave -radix hex      /DMA_testbench/dma_lut_wdata
-add wave -radix binary   /DMA_testbench/dma_lut_wen
-add wave -radix binary   /DMA_testbench/dma_lut_sel
+add wave -divider "Dep Tokens"
+add wave -radix binary /DMA_tb/dep_sa_to_dma_empty
+add wave -radix binary /DMA_tb/dep_vpu_to_dma_empty
+add wave -radix binary /DMA_tb/dep_dma_to_sa_push
+add wave -radix binary /DMA_tb/dep_dma_to_vpu_push
 
 # -------------------------------------------------------------------------
-# Ch5 — DMA_STORE
-# -------------------------------------------------------------------------
-add wave -divider "Ch5 FSM (DMA_STORE)"
-add wave -radix binary   /DMA_testbench/ch5_empty
-add wave -radix binary   /DMA_testbench/ch5_rd
-add wave -radix symbolic /DMA_testbench/dut/ch5_state
-add wave -radix unsigned /DMA_testbench/dut/r5_beat_cnt
-
-add wave -divider "Output Bank Read"
-add wave -radix unsigned /DMA_testbench/dma_out_raddr
-add wave -radix hex      /DMA_testbench/dma_out_rdata
-
-add wave -divider "HP2 Write Master (DMA_STORE)"
-add wave -radix hex      /DMA_testbench/hp2_awaddr
-add wave -radix unsigned /DMA_testbench/hp2_awlen
-add wave -radix binary   /DMA_testbench/hp2_awvalid
-add wave -radix binary   /DMA_testbench/hp2_awready
-add wave -radix hex      /DMA_testbench/hp2_wdata
-add wave -radix hex      /DMA_testbench/hp2_wstrb
-add wave -radix binary   /DMA_testbench/hp2_wlast
-add wave -radix binary   /DMA_testbench/hp2_wvalid
-add wave -radix binary   /DMA_testbench/hp2_wready
-add wave -radix binary   /DMA_testbench/hp2_bresp
-add wave -radix binary   /DMA_testbench/hp2_bvalid
-add wave -radix binary   /DMA_testbench/hp2_bready
-
-# -------------------------------------------------------------------------
-# Error tracking (testbench scoreboard)
+# Scoreboard
 # -------------------------------------------------------------------------
 add wave -divider "Scoreboard"
-add wave -radix unsigned /DMA_testbench/error_count
+add wave -radix unsigned /DMA_tb/err_cnt
+add wave -radix unsigned /DMA_tb/store_count
 
 configure wave -namecolwidth 240
 configure wave -valuecolwidth 120

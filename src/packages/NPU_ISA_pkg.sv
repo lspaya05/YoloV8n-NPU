@@ -32,7 +32,7 @@
 //   8'h21  PSB_ACC     PSB  Add current SA output into PSB INT32 running total
 //   8'h22  PSB_FLUSH   PSB  K-tiles done; forward INT32 to Requant; zero-clear PSB
 //   8'h30  REQUANT     REQ  Apply per-channel (M,S) multiply-shift-clip: INT32 -> INT8
-//   8'h31  LUT_LOAD    VPU  Write 256 B of LUT data from DDR4 -> Act LUT BRAM
+//   8'h31  LUT_LOAD    DMA  Write 256 B of LUT data DDR4 -> Act LUT BRAM (ping-pong via lut_sel)
 //   8'h32  LUT_BYPASS  VPU  Enable/disable LUT bypass mux (linear layers)
 //   8'h33  SIMD_ACT    VPU  Run Act LUT lookup across all 64 lanes: INT8 -> LUT -> INT8
 //   8'h34  RELU        VPU  Clamp INT8 values at zero across all lanes
@@ -177,6 +177,21 @@ package NPU_ISA_pkg;
         logic [15:0]  row_stride;  // [47:32]
         logic [31:0]  base_addr;   // [31:0]
     } npu_dma_desc_t;
+
+    // --- OP_CONCAT (Phase 7) -------------------------------------------------
+    // Two-source 2D-strided gather. base_addr_b shares high byte with base_addr.
+    typedef struct packed {
+        logic [23:0]  base_addr_b_lo;  // [111:88] base_addr_b[23:0]; high byte = base_addr[31:24]
+        logic [3:0]   pad_right;       // [87:84]
+        logic [3:0]   pad_left;        // [83:80]
+        logic [3:0]   pad_bot;         // [79:76]
+        logic [3:0]   pad_top;         // [75:72]
+        logic [7:0]   ch_count;        // [71:64]
+        logic [7:0]   tile_h;          // [63:56]
+        logic [7:0]   tile_w;          // [55:48]
+        logic [15:0]  row_stride;      // [47:32]
+        logic [31:0]  base_addr;       // [31:0]   base_addr_a
+    } npu_concat_payload_t;
 
     // --- OP_COEFF_LOAD -------------------------------------------------------
     // ch_count: number of per-channel (M, S) pairs to load

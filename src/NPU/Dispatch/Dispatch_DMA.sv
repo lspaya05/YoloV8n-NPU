@@ -26,8 +26,10 @@
 //     - desc_pad_bot: Bottom zero-pad rows
 //     - desc_pad_left: Left zero-pad columns
 //     - desc_pad_right: Right zero-pad columns
-//     - desc_fetch_mode: DMA mode 00=LOAD 01=UPSAMPLE 10=CONCAT 11=STORE
-//     - desc_concat_base: CONCAT second-source DDR base (Phase 7; 0 for now)
+//     - desc_fetch_mode: DMA mode 000=LOAD 001=UP 010=CONCAT 011=STORE 100=COEFF 101=LUT
+//     - desc_concat_base: CONCAT second-source DDR base from npu_concat_payload_t
+//     - desc_coeff_ch_count: OP_COEFF_LOAD channel count from npu_coeff_load_payload_t
+//     - desc_lut_sel: OP_LUT_LOAD ping-pong slot select from npu_lut_load_payload_t
 //     - desc_start: 1-cycle pulse to launch DMA Ch0 with latched descriptor
 //     - dep_sa_to_dma_pop: SA->DMA DepFIFO pop, asserted with desc_start on LOAD
 //     - dep_vpu_to_dma_pop: VPU->DMA DepFIFO pop, asserted with desc_start on STORE
@@ -71,8 +73,10 @@ module Dispatch_DMA (
     output logic [3:0]  desc_pad_bot,
     output logic [3:0]  desc_pad_left,
     output logic [3:0]  desc_pad_right,
-    output logic [1:0]  desc_fetch_mode,
+    output logic [2:0]  desc_fetch_mode,
     output logic [31:0] desc_concat_base,
+    output logic [9:0]  desc_coeff_ch_count,
+    output logic        desc_lut_sel,
     output logic        desc_start,
 
     // -------------------------------------------------------------------------
@@ -128,8 +132,10 @@ module Dispatch_DMA (
             desc_pad_bot      <= 4'h0;
             desc_pad_left     <= 4'h0;
             desc_pad_right    <= 4'h0;
-            desc_fetch_mode   <= 2'b00;
-            desc_concat_base  <= 32'h0;
+            desc_fetch_mode      <= 3'b000;
+            desc_concat_base     <= 32'h0;
+            desc_coeff_ch_count  <= 10'h0;
+            desc_lut_sel         <= 1'b0;
         end else begin
             ch0_rd_en          <= 1'b0;
             desc_start         <= 1'b0;
@@ -146,10 +152,13 @@ module Dispatch_DMA (
                 end
 
                 // FIFO has 1-cycle read latency; ch0_dout valid this cycle.
+                // payload[31:0] is the DDR base for all six Ch0 opcodes
+                // (npu_dma_desc_t, npu_coeff_load_payload_t, npu_lut_load_payload_t
+                // all share that field), so desc_src_base latch is opcode-agnostic.
                 S_POP: begin
                     r_opcode         <= ch0_dout[123:116];
-                    // npu_dma_desc_t field unpack (see NPU_ISA_pkg.sv).
                     desc_src_base    <= ch0_dout[31:0];
+                    // npu_dma_desc_t fields (don't-care for COEFF / LUT modes).
                     desc_row_stride  <= ch0_dout[47:32];
                     desc_tile_w      <= ch0_dout[55:48];
                     desc_tile_h      <= ch0_dout[63:56];
@@ -158,24 +167,28 @@ module Dispatch_DMA (
                     desc_pad_bot     <= ch0_dout[79:76];
                     desc_pad_left    <= ch0_dout[83:80];
                     desc_pad_right   <= ch0_dout[87:84];
-                    // CONCAT second-source base lives in payload[111:88] high byte
-                    // of base + reserved; Phase 7 wires npu_concat_payload_t.
-                    desc_concat_base <= 32'h0;
+                    // npu_concat_payload_t: base_addr_b[23:0] in payload[111:88];
+                    // base_addr_b[31:24] shares base_addr_a[31:24] (same 256 MB region).
+                    desc_concat_base <= {ch0_dout[31:24], ch0_dout[111:88]};
+                    // npu_coeff_load_payload_t: ch_count in [41:32].
+                    desc_coeff_ch_count <= ch0_dout[41:32];
+                    // npu_lut_load_payload_t: lut_sel in [32].
+                    desc_lut_sel        <= ch0_dout[32];
                     unique case (ch0_dout[123:116])
-                        OP_DMA_LOAD:   desc_fetch_mode <= 2'b00;
-                        OP_UPSAMPLE:   desc_fetch_mode <= 2'b01;
-                        OP_CONCAT:     desc_fetch_mode <= 2'b10;
-                        OP_DMA_STORE:  desc_fetch_mode <= 2'b11;
-                        default:       desc_fetch_mode <= 2'b00;
+                        OP_DMA_LOAD:   desc_fetch_mode <= 3'b000;
+                        OP_UPSAMPLE:   desc_fetch_mode <= 3'b001;
+                        OP_CONCAT:     desc_fetch_mode <= 3'b010;
+                        OP_DMA_STORE:  desc_fetch_mode <= 3'b011;
+                        OP_COEFF_LOAD: desc_fetch_mode <= 3'b100;
+                        OP_LUT_LOAD:   desc_fetch_mode <= 3'b101;
+                        default:       desc_fetch_mode <= 3'b000;
                     endcase
                     ch0_state <= S_WAIT_DEP;
                 end
 
                 S_WAIT_DEP: begin
-                    // COEFF_LOAD (Phase 6) and any unrecognized opcode: drop.
-                    if (r_opcode == OP_COEFF_LOAD) begin
-                        ch0_state <= S_IDLE;
-                    end else if (need_dep_sa) begin
+                    // COEFF_LOAD and LUT_LOAD have no dep gating — fall through.
+                    if (need_dep_sa) begin
                         if (!dep_sa_to_dma_empty) ch0_state <= S_START;
                     end else if (need_dep_vpu) begin
                         if (!dep_vpu_to_dma_empty) ch0_state <= S_START;

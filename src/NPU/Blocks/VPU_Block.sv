@@ -53,8 +53,10 @@ module VPU_Block #(
     output logic [$clog2(RES_BANK_DEPTH)-1:0]   res_raddr,
     input  logic [127:0]                        res_rdata,
 
-    // SRAMHub — LUT select (raddr/data deferred)
+    // SRAMHub — LUT select + read interface (raddr/data; SIMD_ACT internal logic TODO)
     output logic                                lut_sel,
+    output logic [7:0]                          lut_raddr,
+    input  logic [7:0]                          lut_rdata,
 
     // Output Bank writer bus (mux'd against Requant at NPU top)
     output logic [$clog2(OUT_BANK_DEPTH)-1:0]   out_waddr,
@@ -153,6 +155,8 @@ module VPU_Block #(
         .vpu_out_wen      (out_wen),
         .lut_bypass_en    (lut_bypass_en_w),
         .vpu_lut_sel      (lut_sel),
+        .vpu_lut_raddr    (lut_raddr),
+        .vpu_lut_rdata    (lut_rdata),
         .unit_done        (vpu_done_pulse)
     );
 

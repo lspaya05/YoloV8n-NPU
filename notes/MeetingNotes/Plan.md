@@ -62,3 +62,8 @@ Bernardo Lin:
 Tb for requant pipeline
 Flag exchange for VPU
 Most of the SRAM Hub
+
+# Task 5/26
+Bernardo - Make testbenches for blocks, and new DMA
+
+Leonard - Leonard Finish presentation, finish top level.

@@ -79,6 +79,9 @@ module Dispatch_VPU #(
 
     output logic                                lut_bypass_en,
     output logic                                vpu_lut_sel,
+    // LUT read interface to SRAMHub (SIMD_ACT path; internal logic TODO)
+    output logic [7:0]                          vpu_lut_raddr,
+    input  logic [7:0]                          vpu_lut_rdata,
 
     output logic                                unit_done
 );
@@ -131,6 +134,7 @@ module Dispatch_VPU #(
             vpu_out_wen     <= 1'b0;
             lut_bypass_en   <= 1'b0;
             vpu_lut_sel     <= 1'b0;
+            vpu_lut_raddr   <= 8'h0;
             unit_done       <= 1'b0;
             word_idx        <= 8'h0;
             target_count    <= 8'h0;
@@ -266,8 +270,8 @@ module Dispatch_VPU #(
         end
     end
 
-    // Surface so unused-input lint stays quiet when vpu opcode never errors.
+    // Suppress unused-input lint.
     logic _unused;
-    assign _unused = vpu_valid_opcode;
+    assign _unused = vpu_valid_opcode | (|vpu_lut_rdata);
 
 endmodule

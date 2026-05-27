@@ -200,9 +200,9 @@ module NPU (
     logic [2:0]  cfg_act_type;
     logic [2:0]  cfg_pool_size;
 
-    // UNIT_SEQ never fences on itself. UNIT_DMA reports done when both DMA
-    // channels are idle (Phase 1: ch1_idle stub = 1'b1). Other units driven by
-    // their dispatch modules (held inactive until Phases 2–5).
+    // UNIT_SEQ never fences on itself. UNIT_DMA reports done when both Ch0
+    // (LOAD/STORE/UPSAMPLE/CONCAT/COEFF/LUT) and Ch1 (WT_LOAD) FSMs are idle.
+    // Other units report idle via their dispatch modules.
     logic dma_ch0_idle_w, dma_ch1_idle_w;
     logic dma_act_bank_full_w;
     logic dma_wt_bank_full_w;
@@ -255,15 +255,20 @@ module NPU (
         .cfg_act_type    (cfg_act_type),
         .cfg_pool_size   (cfg_pool_size),
 
-        .irq_done        (irq_done),
+        .irq_done        (seq_irq_done_w),
         .fetch_err       (fetch_err)
     );
+
+    // Top-level irq_done = DMA_STORE complete (v2.1 §IRQ semantics). Sequencer
+    // irq stays internal (Phase 5 takes Phase-1 priority to DMA pulse).
+    assign irq_done = dma_store_done_w;
+    logic _unused_seq_irq;
+    assign _unused_seq_irq = seq_irq_done_w;
 
 // =============================================================================
 // Dependency FIFOs — RAW/WAR ordering between units. Block-driven semantics:
 // producer pushes a token on completion; consumer's dispatch pops before
-// issuing dependent work. Push/pop tied off in Phase 1 — rewired by blocks
-// in Phases 2–6.
+// issuing dependent work. All push/pop pins are wired to their owning blocks.
 // =============================================================================
 
     localparam int DepDepth = 8;
@@ -366,9 +371,20 @@ module NPU (
     logic [15:0] desc_row_stride_w;
     logic [7:0]  desc_tile_w_w, desc_tile_h_w, desc_ch_count_w;
     logic [3:0]  desc_pad_top_w, desc_pad_bot_w, desc_pad_left_w, desc_pad_right_w;
-    logic [1:0]  desc_fetch_mode_w;
+    logic [2:0]  desc_fetch_mode_w;
     logic [31:0] desc_concat_base_w;
+    logic [9:0]  desc_coeff_ch_count_w;
+    logic        desc_lut_sel_w;
     logic        desc_start_w;
+
+    // DMA Coeff/LUT BRAM write ports (Phase 6).
+    logic [$clog2(MAX_CHANNELS)-1:0]            dma_coeff_waddr_w;
+    logic [COEFF_M_WIDTH+COEFF_S_WIDTH-1:0]     dma_coeff_wdata_w;
+    logic                                        dma_coeff_wen_w;
+    logic [$clog2(LUT_DEPTH)-1:0]               dma_lut_waddr_w;
+    logic [7:0]                                  dma_lut_wdata_w;
+    logic                                        dma_lut_wen_w;
+    logic                                        dma_lut_sel_w;
 
     // DMA SRAM Act-bank write port (Phase 3). DMA's sram_waddr is sized for
     // RES_BANK_DEPTH (10b); Act bank is ACT_BUF_DEPTH (8b) — truncate low bits.
@@ -382,6 +398,12 @@ module NPU (
     logic [$clog2(WT_BUF_DEPTH)-1:0] dma_sram_wt_waddr_w;
     logic [127:0]                    dma_sram_wt_wdata_w;
     logic                            dma_sram_wt_wen_w;
+
+    // DMA Output-bank read port + STORE done (Phase 5).
+    logic [$clog2(RES_BANK_DEPTH)-1:0] dma_sram_raddr_w;
+    logic [127:0]                      dma_sram_rdata_w;
+    logic                              dma_store_done_w;
+    logic                              seq_irq_done_w;
 
     // wt_* read master now driven by DMA HP1 (Phase 1 ties low inside DMA.sv;
     // Phase 4 brings up the Ch1 FSM). No top-level tie-offs needed.
@@ -445,6 +467,8 @@ module NPU (
         .desc_pad_right       (desc_pad_right_w),
         .desc_fetch_mode      (desc_fetch_mode_w),
         .desc_concat_base     (desc_concat_base_w),
+        .desc_coeff_ch_count  (desc_coeff_ch_count_w),
+        .desc_lut_sel         (desc_lut_sel_w),
         .desc_start           (desc_start_w),
 
         .dma_ch0_idle         (dma_ch0_idle_w),
@@ -469,8 +493,10 @@ module NPU (
         .pad_bot      (desc_pad_bot_w),
         .pad_left     (desc_pad_left_w),
         .pad_right    (desc_pad_right_w),
-        .fetch_mode   (desc_fetch_mode_w),
-        .concat_base  (desc_concat_base_w),
+        .fetch_mode      (desc_fetch_mode_w),
+        .concat_base     (desc_concat_base_w),
+        .coeff_ch_count  (desc_coeff_ch_count_w),
+        .lut_sel         (desc_lut_sel_w),
 
         // Ch1 descriptor + start
         .ch1_start    (ch1_start_w),
@@ -481,6 +507,7 @@ module NPU (
         .ch1_idle          (dma_ch1_idle_w),
         .dma_act_bank_full (dma_act_bank_full_w),
         .dma_wt_bank_full  (dma_wt_bank_full_w),
+        .dma_store_done    (dma_store_done_w),
 
         // HP0 read — wired to NPU top-level dma_* AXI master.
         .hp0_araddr   (dma_araddr),
@@ -527,18 +554,27 @@ module NPU (
         .hp1_rresp    (wt_rresp),
         .hp1_rready   (wt_rready),
 
-        // SRAM write port → SRAMHub Act bank (Phase 3). Read port open until
-        // Phase 5 (DMA_STORE wires it to SRAMHub Output bank).
+        // Ch0 SRAM write → SRAMHub Act bank (Phase 3); SRAM read → Output bank
+        // (Phase 5, DMA_STORE).
         .sram_waddr   (dma_sram_waddr_w),
         .sram_wdata   (dma_sram_wdata_w),
         .sram_wen     (dma_sram_wen_w),
-        .sram_raddr   (),
-        .sram_rdata   (128'h0),
+        .sram_raddr   (dma_sram_raddr_w),
+        .sram_rdata   (dma_sram_rdata_w),
 
         // Wt SRAM write port → SRAMHub Weight bank (Phase 4).
         .sram_wt_waddr (dma_sram_wt_waddr_w),
         .sram_wt_wdata (dma_sram_wt_wdata_w),
         .sram_wt_wen   (dma_sram_wt_wen_w),
+
+        // Coeff / LUT BRAM write ports → SRAMHub (Phase 6).
+        .sram_coeff_waddr (dma_coeff_waddr_w),
+        .sram_coeff_wdata (dma_coeff_wdata_w),
+        .sram_coeff_wen   (dma_coeff_wen_w),
+        .sram_lut_waddr   (dma_lut_waddr_w),
+        .sram_lut_wdata   (dma_lut_wdata_w),
+        .sram_lut_wen     (dma_lut_wen_w),
+        .sram_lut_sel     (dma_lut_sel_w),
 
         .dma_err      (dma_err_w),
 
@@ -557,8 +593,9 @@ module NPU (
 
 // =============================================================================
 // SRAM Hub block — Act/Wt ping-pong, Res, Out, Coeff BRAM, LUT banks.
-// Phase 2: only SA-side read ports are driven; all DMA write ports and the
-// VPU/Requant ports are tied to 0 until their owning blocks come online.
+// All DMA write ports (Act/Wt/Out/Coeff/LUT) and SA/VPU/Requant read ports are
+// wired to their owning blocks. Residual-bank write port still tied 0 (no DMA
+// path for skip-tensor preload yet; future work).
 // =============================================================================
 
     // SA-side (driven by Dispatch_SA in the SA block below)
@@ -586,6 +623,8 @@ module NPU (
     logic [127:0]                                   vpu_vpu_out_wdata_w;
     logic                                           vpu_vpu_out_wen_w;
     logic                                           vpu_lut_sel_w;
+    logic [7:0]                                     vpu_lut_raddr_w;
+    logic [7:0]                                     vpu_lut_rdata_w;
 
     // Output Bank writer mux: Requant (Phase 4 path) vs VPU dispatch (Phase 5
     // path). Sequencer FENCEs guarantee they don't fire simultaneously, but
@@ -631,31 +670,33 @@ module NPU (
         .vpu_res_raddr     (vpu_res_raddr_w),
         .vpu_res_rdata     (vpu_res_rdata_w),
 
-        // Output bank — muxed writer (Requant or VPU), VPU reader (HREDUCE).
+        // Output bank — muxed writer (Requant or VPU), VPU reader (HREDUCE),
+        // DMA reader for DMA_STORE (Phase 5). out_rd_sel must be 0 during STORE;
+        // Sequencer FENCEs guarantee VPU HREDUCE doesn't fire concurrently.
         .vpu_out_waddr     (out_waddr_mux_w),
         .vpu_out_wdata     (out_wdata_mux_w),
         .vpu_out_wen       (out_wen_mux_w),
         .out_rd_sel        (vpu_out_rd_sel_w),
-        .dma_out_raddr     ('0),
-        .dma_out_rdata     (),
+        .dma_out_raddr     (dma_sram_raddr_w[$clog2(OUT_BANK_DEPTH)-1:0]),
+        .dma_out_rdata     (dma_sram_rdata_w),
         .vpu_hred_raddr    (vpu_hred_raddr_w),
         .vpu_hred_rdata    (vpu_hred_rdata_w),
 
-        // Requant Coeff BRAM
-        .dma_coeff_waddr   ('0),
-        .dma_coeff_wdata   ('0),
-        .dma_coeff_wen     (1'b0),
+        // Requant Coeff BRAM — DMA writes via OP_COEFF_LOAD (Phase 6).
+        .dma_coeff_waddr   (dma_coeff_waddr_w),
+        .dma_coeff_wdata   (dma_coeff_wdata_w),
+        .dma_coeff_wen     (dma_coeff_wen_w),
         .req_coeff_raddr   (req_coeff_raddr_w),
         .req_coeff_rdata   (req_coeff_rdata_w),
 
-        // LUT banks — read-side wired to VPU dispatch (raddr not yet driven
-        // because SIMD_ACT is RTL-deferred; sel held latched for LUT_BYPASS).
-        .dma_lut_waddr     (8'h0),
-        .dma_lut_wdata     (8'h0),
-        .dma_lut_wen       (1'b0),
-        .dma_lut_sel       (1'b0),
-        .vpu_lut_raddr     (8'h0),
-        .vpu_lut_rdata     (),
+        // LUT banks — DMA writes via OP_LUT_LOAD (Phase 6). Read-side wired to
+        // VPU dispatch; raddr not yet driven (SIMD_ACT RTL deferred).
+        .dma_lut_waddr     (dma_lut_waddr_w),
+        .dma_lut_wdata     (dma_lut_wdata_w),
+        .dma_lut_wen       (dma_lut_wen_w),
+        .dma_lut_sel       (dma_lut_sel_w),
+        .vpu_lut_raddr     (vpu_lut_raddr_w),
+        .vpu_lut_rdata     (vpu_lut_rdata_w),
         .vpu_lut_sel       (vpu_lut_sel_w)
     );
 
@@ -737,6 +778,11 @@ module NPU (
         .dep_psb_to_req_push  (psb_to_req_push)
     );
 
+    // psb_row_index_w: PSB row index output has no downstream consumer at this
+    // level (Requant_Block addresses coefficients internally). Suppress lint.
+    logic _unused_psb_row_idx;
+    assign _unused_psb_row_idx = |psb_row_index_w;
+
 
 // =============================================================================
 // Requant block — encapsulated in Requant_Block wrapper. Owns its instr FIFO,
@@ -807,6 +853,8 @@ module NPU (
         .res_rdata            (vpu_res_rdata_w),
 
         .lut_sel              (vpu_lut_sel_w),
+        .lut_raddr            (vpu_lut_raddr_w),
+        .lut_rdata            (vpu_lut_rdata_w),
 
         .out_waddr            (vpu_vpu_out_waddr_w),
         .out_wdata            (vpu_vpu_out_wdata_w),
