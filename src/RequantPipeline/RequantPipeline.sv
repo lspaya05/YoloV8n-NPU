@@ -80,7 +80,7 @@ module RequantPipeline #(
         endcase
 
         for (int i = 0; i < Lanes; i++) begin
-            automatic int ch = i / LanesPerCh;
+            int ch; ch = i / LanesPerCh;
             unique case (mode_i)
                 2'b01: begin  // FROM_PSB: INT32 directly from psb_row_i + bias
                     lane_op_a[i] = signed'(psb_row_i[i]);

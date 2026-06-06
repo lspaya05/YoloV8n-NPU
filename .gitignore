@@ -123,3 +123,9 @@ Thumbs.db
 .claude/settings.local.json
 /transcript
 /work/
+
+# ========================
+# Python
+# ========================
+/sim_build
+/.pytest_cache

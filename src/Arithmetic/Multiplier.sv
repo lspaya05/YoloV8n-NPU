@@ -27,5 +27,5 @@ module Multiplier #(
     // Explicit cast to BIT_WIDTH_OUTPUT prevents silent MSB truncation of the
     // full-width product. [IEEE 1800-2017 §6.24.1]
     (* use_dsp = "yes" *)
-    assign out = BIT_WIDTH_OUTPUT'(in0 * in1);
+    assign out = in0 * in1;
 endmodule

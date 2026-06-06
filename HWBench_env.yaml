@@ -1,0 +1,47 @@
+name: HWBench
+ 
+channels:
+  - conda-forge
+  - defaults
+ 
+dependencies:
+  # ── Python ────────────────────────────────────────────────────────────────
+  - python=3.11
+ 
+  # ── Simulators (via conda-forge) ──────────────────────────────────────────
+  - iverilog                      # Icarus Verilog 13.0 — unit tests, X-prop catching
+  - verilator                     # Verilator 5.042 — fast integration/regression runs
+ 
+  # ── Waveform viewer ───────────────────────────────────────────────────────
+  - gtkwave                       # open .vcd / .fst files from sim output
+ 
+  # ── Build toolchain (needed by Verilator's C++ backend) ───────────────────
+  - make
+  - cmake
+  - gcc
+  - gxx                           # g++ for Verilator C++ compilation
+ 
+  # ── Python packages ───────────────────────────────────────────────────────
+  - pip
+  - pip:
+    - cocotb>=2.0.1
+    - cocotb_test
+    # Numeric / golden model
+    - numpy                       
+    - torch                       
+    - torchvision                 
+ 
+    # Waveform parsing from Python (optional but useful)
+    - pyDigitalWaveTools           # read VCD files back into Python for post-processing
+ 
+    # Test runner / reporting
+    - pytest                      # run cocotb tests via pytest instead of bare make
+    - pytest-html                 
+    - pytest-xdist                # parallel test execution
+ 
+    # Utilities
+    - tqdm                        # progress bars for long stimulus generation loops
+    - rich                        # pretty terminal output for custom test reporters
+    - pyyaml                      # load test config files
+    - pandas                      # tabulate performance results
+    - matplotlib                  # plot throughput / latency results
