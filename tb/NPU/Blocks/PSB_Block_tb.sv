@@ -17,6 +17,7 @@ module PSB_Block_tb();
     logic unit_done;
     logic signed [ACCUM_WIDTH-1:0] sa_row_in [SA_COLS-1:0];
     logic sa_row_valid;
+    logic requant_armed;
     logic [SA_COLS*ACCUM_WIDTH-1:0] requant_row_out;
     logic [$clog2(SA_ROWS)-1:0] row_index_out;
     logic row_out_valid;
@@ -57,6 +58,7 @@ module PSB_Block_tb();
         disp_payload = '0;
         disp_push = 1'b0;
         sa_row_valid = 1'b0;
+        requant_armed = 1'b1;  // flush enabled (gate added for NPU arm-handshake)
         dep_sa_to_psb_empty = 1'b1;
         dep_req_to_psb_empty = 1'b1;
         dep_psb_to_sa_full = 1'b0;

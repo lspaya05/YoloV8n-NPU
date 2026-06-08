@@ -19,6 +19,7 @@
 //     - psb_busy: psb.busy — high during ACC/FLUSH windows
 //     - psb_acc_done: psb.acc_done — 1-cycle pulse after 16th row_valid
 //     - psb_flush_done: psb.flush_done — 1-cycle pulse after 16 flush rows
+//     - requant_armed: Requant pipeline is in FROM_PSB mode; gates OP_PSB_FLUSH
 // Outputs:
 //     - fifo_rd_en: Pop strobe for PSB instr FIFO
 //     - psb_acc: psb.psb_acc — enter accumulate state
@@ -39,6 +40,7 @@ module Dispatch_PSB (
     input  logic         psb_busy,
     input  logic         psb_acc_done,
     input  logic         psb_flush_done,
+    input  logic         requant_armed,
 
     output logic         psb_acc,
     output logic         psb_flush,
@@ -86,8 +88,11 @@ module Dispatch_PSB (
                             OP_PSB_FLUSH: begin
                                 // psb.psb_flush is sampled only in s0; if psb
                                 // is mid-ACC wait for it to drain (acc_done
-                                // brings it back to s0).
-                                if (!psb_busy) begin
+                                // brings it back to s0). Also wait until Requant
+                                // is armed (FROM_PSB / S_RUN) so the flush rows
+                                // are not emitted before the requant pipeline can
+                                // receive them.
+                                if (!psb_busy && requant_armed) begin
                                     fifo_rd_en <= 1'b1;
                                     psb_flush  <= 1'b1;
                                     state      <= S_WAIT_FLUSH;

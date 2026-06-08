@@ -96,17 +96,17 @@ module SA_Controller #(
         drain_done = 0;
 
         // Assert only on the final LOAD cycle.
-        if ((ps == LOAD) && (counter == ARRAY_HEIGHT - 1))
+        if ((ps == LOAD) && (counter == 8'(ARRAY_HEIGHT - 1)))
             load_done = 1;
 
         // Assert only on the final RUN cycle.
-        if ((ps == RUN) && (counter == K_DIM - 1))
+        if ((ps == RUN) && (counter == 8'(K_DIM - 1)))
             run_done = 1;
 
         // Assert only on the final DRAIN cycle.
         // Since DRAIN lasts (ARRAY_HEIGHT + ARRAY_LENGTH - 2) cycles,
         // the last counter value is one less than that.
-        if ((ps == DRAIN) && (counter == ARRAY_HEIGHT + ARRAY_LENGTH - 3))
+        if ((ps == DRAIN) && (counter == 8'(ARRAY_HEIGHT + ARRAY_LENGTH - 3)))
             drain_done = 1;
     end
 

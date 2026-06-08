@@ -104,6 +104,7 @@ module SA_Block (
     logic sa_empty_to_dispatch;
     logic sa_rd_en_from_dispatch;
     logic sa_done_pulse;
+    logic sa_done_pulse_d;  // 1-cycle-delayed completion (capture/PSB-token strobe)
 
     assign deps_ready           = ~dep_dma_to_sa_empty & ~dep_psb_to_sa_empty;
     assign sa_empty_to_dispatch = ~sa_issue_valid | ~deps_ready;
@@ -120,7 +121,10 @@ module SA_Block (
     // dep_*_full is intentionally ignored this pass — FENCE-based ordering
     // is assumed to prevent overflow. Revisit if a producer overruns DepFIFO.
     assign dep_sa_to_dma_push = sa_done_pulse;
-    assign dep_sa_to_psb_push = sa_done_pulse;
+    // PSB token (and the buffer-capture strobe below) are delayed one cycle so
+    // they land after SA_top.MatrixMulOut has actually updated — see sa_row_valid
+    // note below. This also keeps the flush enable strictly behind the capture.
+    assign dep_sa_to_psb_push = sa_done_pulse_d;
 
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -164,7 +168,19 @@ module SA_Block (
     );
 
     assign unit_done    = sa_done_pulse;
-    assign sa_row_valid = sa_done_w;
+
+    // SA_top.MatrixMulOut (= sa_row_out) is registered through done_prev, so it
+    // only holds the final result the cycle AFTER sa_done_pulse. Sampling on
+    // sa_done_pulse itself hits the same clock edge MatrixMulOut updates and
+    // reads the stale (zero) value. Delay the capture strobe one cycle so PSB
+    // latches a settled sa_row_out. sa_row_out then stays stable until the next
+    // MATMUL, so a later capture is safe.
+    always_ff @(posedge clk) begin
+        if (rst) sa_done_pulse_d <= 1'b0;
+        else     sa_done_pulse_d <= sa_done_pulse;
+    end
+
+    assign sa_row_valid = sa_done_pulse_d;
 
     // -------------------------------------------------------------------------
     // Packed -> unpacked SRAM word conversion

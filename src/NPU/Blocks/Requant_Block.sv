@@ -23,6 +23,7 @@
 //     - disp_full, unit_done
 //     - coeff_raddr: Coeff BRAM read address
 //     - out_waddr, out_wdata, out_wen: Output-Bank writer bus (mux'd at top)
+//     - req_armed: high while pipeline is in FROM_PSB mode (gates PSB flush)
 //     - dep_psb_to_req_pop, dep_vpu_to_req_pop: token consumption
 //     - dep_req_to_psb_push, dep_req_to_vpu_push: token production
 
@@ -56,6 +57,11 @@ module Requant_Block #(
     output logic [$clog2(OUT_BANK_DEPTH)-1:0]   out_waddr,
     output logic [127:0]                        out_wdata,
     output logic                                out_wen,
+
+    // High once the pipeline is configured in FROM_PSB mode (S_RUN). PSB_Block
+    // gates OP_PSB_FLUSH on this so flush rows are never emitted before Requant
+    // is armed to receive them.
+    output logic                                req_armed,
 
     // Dep-in
     input  logic                                dep_psb_to_req_empty,
@@ -104,8 +110,13 @@ module Requant_Block #(
     logic req_rd_en_from_dispatch;
     logic req_done_pulse;
 
-    assign deps_ready            = ~dep_vpu_to_req_empty
-                                 & ~dep_req_to_psb_full  & ~dep_req_to_vpu_full;
+    // WAR-only gate: don't re-issue before VPU has consumed the previous result
+    // (dep_vpu_to_req starts pre-seeded). PSB->REQ ordering is handled by the
+    // req_armed handshake (PSB_Block gates flush on it), so no dep_psb_to_req RAW
+    // gate here — that token only arrives after flush-done and would deadlock
+    // against the arm-gate. The outgoing _full terms were also wrong (a block
+    // shouldn't gate issue on its own producer backpressure) and are dropped.
+    assign deps_ready            = ~dep_vpu_to_req_empty;
     assign req_empty_to_dispatch = ~req_issue_valid | ~deps_ready;
     assign req_fifo_pop          = ~req_fifo_empty & ~req_issue_valid;
     assign req_fifo_rd_en        = req_rd_en_from_dispatch;
@@ -115,6 +126,12 @@ module Requant_Block #(
 
     assign dep_req_to_psb_push = req_done_pulse;
     assign dep_req_to_vpu_push = req_done_pulse;
+
+    // Producer-side backpressure is not gated on this pass (FENCE/arm ordering is
+    // assumed to prevent DepFIFO overflow), so these _full inputs are observed
+    // but not consumed. Keep them referenced to avoid UNUSED lint.
+    logic _unused_req_full;
+    assign _unused_req_full = dep_req_to_psb_full | dep_req_to_vpu_full;
 
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -168,6 +185,10 @@ module Requant_Block #(
     );
 
     assign unit_done = req_done_pulse;
+
+    // FROM_PSB (2'b01) means Dispatch_REQ has loaded coeffs and is in S_RUN
+    // waiting for flush rows — i.e. armed.
+    assign req_armed = (req_mode_w == 2'b01);
 
     // -------------------------------------------------------------------------
     // RequantPipeline datapath

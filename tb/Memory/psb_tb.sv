@@ -54,6 +54,7 @@ module psb_tb;
         .psb_acc       (psb_acc),
         .psb_flush     (psb_flush),
         .row_valid     (row_valid),
+        .sa_capture    (1'b0),
         .sa_row_in     (sa_row_in),
         .requant_row_out(requant_row_out),
         .row_index_out (row_index_out),

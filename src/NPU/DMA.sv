@@ -299,10 +299,10 @@ module DMA (
 
     // Zero-padding detection: combinational on registered counters.
     logic is_pad;
-    assign is_pad = (cur_h <  r_pad_top)             |
-                    (cur_h >= r_tile_h - r_pad_bot)   |
-                    (cur_w <  r_pad_left)              |
-                    (cur_w >= r_tile_w - r_pad_right);
+    assign is_pad = (cur_h <  8'(r_pad_top))               |
+                    (cur_h >= r_tile_h - 8'(r_pad_bot))     |
+                    (cur_w <  8'(r_pad_left))                |
+                    (cur_w >= r_tile_w - 8'(r_pad_right));
 
     // =========================================================================
     // Ch0 read-master FSM — modes 000 / 001 / 010 (Act tile fetch + pad)
@@ -338,6 +338,9 @@ module DMA (
     logic                                        coeff_last_beat;
     // 9-bit context: max beats = ceil(512/2) = 256; arlen field truncated to 8b.
     logic [8:0]                                  coeff_beats_total;
+    // Count of beats accepted; backstop so the FSM exits on burst-length even
+    // if hp0_rlast is lost across the S_C_R/S_C_WR1 rready toggle.
+    logic [8:0]                                  coeff_beats_received;
 
     // -------------------------------------------------------------------------
     // LUT_LOAD scratch state. 16 beats × 16 bytes = 256 B = LUT_DEPTH.
@@ -454,6 +457,7 @@ module DMA (
             coeff_buf         <= 128'h0;
             coeff_last_beat   <= 1'b0;
             coeff_beats_total <= 9'h0;
+            coeff_beats_received <= 9'h0;
             sram_coeff_waddr  <= '0;
             sram_coeff_wdata  <= '0;
             sram_coeff_wen    <= 1'b0;
@@ -512,6 +516,7 @@ module DMA (
                                 coeff_beats_total <= 9'((coeff_ch_count + 10'd1) >> 1);
                                 coeff_waddr_r     <= '0;
                                 coeff_last_beat   <= 1'b0;
+                                coeff_beats_received <= 9'h0;
                                 state             <= S_C_AR;
                             end
                             3'b101: begin  // LUT_LOAD
@@ -638,15 +643,19 @@ module DMA (
 
                 // Accept a beat; write entry 0 (low half). Drop rready next
                 // cycle (S_C_WR1) so AXI throttles between paired writes.
+                // coeff_last_beat backstop: assert on burst-length match in case
+                // hp0_rlast is dropped by a non-strict slave during the rready toggle.
                 S_C_R: begin
                     if (hp0_rvalid) begin
                         if (|hp0_rresp) err_load_r <= 1'b1;
                         coeff_buf        <= hp0_rdata;
-                        coeff_last_beat  <= hp0_rlast;
+                        coeff_last_beat  <= hp0_rlast |
+                            (coeff_beats_received == coeff_beats_total - 9'h1);
                         sram_coeff_wdata <= {hp0_rdata[63:32], hp0_rdata[3:0]};
                         sram_coeff_waddr <= coeff_waddr_r;
                         sram_coeff_wen   <= 1'b1;
                         coeff_waddr_r    <= coeff_waddr_r + 1'b1;
+                        coeff_beats_received <= coeff_beats_received + 9'h1;
                         state            <= S_C_WR1;
                     end
                 end

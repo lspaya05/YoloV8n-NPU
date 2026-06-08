@@ -23,6 +23,7 @@ module Requant_Block_tb();
     logic [$clog2(OUT_BANK_DEPTH)-1:0] out_waddr;
     logic [127:0] out_wdata;
     logic out_wen;
+    logic req_armed;
     logic dep_psb_to_req_empty;
     logic dep_psb_to_req_pop;
     logic dep_vpu_to_req_empty;

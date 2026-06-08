@@ -36,10 +36,34 @@ module PingPongBuffer #(
 logic bank_sel;   // 0: bank A is SA-side, bank B is DMA-side
                   // 1: bank B is SA-side, bank A is DMA-side
 
-// Swap when both sides signal done
+// bank_full and bank_read are 1-cycle pulses that normally arrive on different
+// cycles (the DMA finishes filling the inactive bank long before the SA finishes
+// draining the active one), so the original `bank_full && bank_read` term never
+// fired and bank_sel was stuck at 0 — the SA kept reading the empty reset bank.
+// Latch each pulse until a swap consumes it. The very first fill has no prior
+// tile for the SA to drain, so prime the SA side on bank_full alone; afterwards
+// require both a fresh fill and a drain before swapping.
+logic full_pend, read_pend, primed;
+logic full_now, read_now, do_swap;
+assign full_now = bank_full | full_pend;
+assign read_now = bank_read | read_pend;
+assign do_swap  = primed ? (full_now & read_now) : full_now;
+
 always_ff @(posedge clk) begin
-    if (rst) bank_sel <= 0;
-    else if (bank_full && bank_read) bank_sel <= ~bank_sel;
+    if (rst) begin
+        bank_sel  <= 1'b0;
+        full_pend <= 1'b0;
+        read_pend <= 1'b0;
+        primed    <= 1'b0;
+    end else if (do_swap) begin
+        bank_sel  <= ~bank_sel;
+        primed    <= 1'b1;
+        full_pend <= 1'b0;
+        read_pend <= 1'b0;
+    end else begin
+        full_pend <= full_now;
+        read_pend <= read_now;
+    end
 end
 
 // Two inferred BRAMs

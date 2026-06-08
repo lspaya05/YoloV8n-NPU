@@ -210,11 +210,11 @@ module NPU (
     logic seq_irq_done_w;
     always_comb begin
         units_done           = 6'b0;
-        units_done[UNIT_DMA] = dma_ch0_idle_w & dma_ch1_idle_w;
-        units_done[UNIT_SA]  = sa_done_pulse;
-        units_done[UNIT_PSB] = psb_done_pulse;
-        units_done[UNIT_REQ] = req_done_pulse;
-        units_done[UNIT_VPU] = vpu_done_pulse;
+        units_done[3'(UNIT_DMA)] = dma_ch0_idle_w & dma_ch1_idle_w;
+        units_done[3'(UNIT_SA)]  = sa_done_pulse;
+        units_done[3'(UNIT_PSB)] = psb_done_pulse;
+        units_done[3'(UNIT_REQ)] = req_done_pulse;
+        units_done[3'(UNIT_VPU)] = vpu_done_pulse;
     end
 
     Sequencer sequence_unit (
@@ -327,7 +327,10 @@ module NPU (
         .full(req_to_psb_full), .empty(req_to_psb_empty)
     );
 
-    DepFIFO #(.DEPTH(DepDepth), .RESET_COUNT(1)) dep_req_to_vpu (
+    // Forward RAW (REQ -> VPU): must start empty so VPU waits for REQUANT-done
+    // before OP_LUT_BYPASS retires. (Was RESET_COUNT(1), which let VPU — and thus
+    // OP_DMA_STORE / irq_done — fire before any real data existed.)
+    DepFIFO #(.DEPTH(DepDepth)) dep_req_to_vpu (
         .clk(clk), .rst(rst),
         .push(req_to_vpu_push), .pop(req_to_vpu_pop),
         .full(req_to_vpu_full), .empty(req_to_vpu_empty)
@@ -750,6 +753,7 @@ module NPU (
     logic [SA_COLS*ACCUM_WIDTH-1:0] requant_row_out_w;
     logic [$clog2(SA_ROWS)-1:0]     psb_row_index_w;
     logic                           psb_row_out_valid_w;
+    logic                           req_armed_w;  // Requant FROM_PSB -> gate flush
 
     PSB_Block u_psb_block (
         .clk                  (clk),
@@ -762,6 +766,8 @@ module NPU (
 
         .sa_row_in            (sa_row_out_w),
         .sa_row_valid         (sa_row_valid_w),
+
+        .requant_armed        (req_armed_w),
 
         .requant_row_out      (requant_row_out_w),
         .row_index_out        (psb_row_index_w),
@@ -791,7 +797,7 @@ module NPU (
 
     Requant_Block #(
         .Lanes      (16),
-        .ChCount    (1),
+        .ChCount    (16),  // per-channel (M,S): one coeff pair per lane
         .M0Width    (COEFF_M_WIDTH),
         .ShiftWidth (8)
     ) u_requant_block (
@@ -812,6 +818,8 @@ module NPU (
         .out_waddr            (req_vpu_out_waddr_w),
         .out_wdata            (req_vpu_out_wdata_w),
         .out_wen              (req_vpu_out_wen_w),
+
+        .req_armed            (req_armed_w),
 
         .dep_psb_to_req_empty (psb_to_req_empty),
         .dep_psb_to_req_pop   (psb_to_req_pop),

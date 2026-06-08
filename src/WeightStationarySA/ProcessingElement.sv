@@ -37,7 +37,7 @@ module ProcessingElement #(
 
     //Reformatting Bits
     logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] adderIn1;
-    assign adderIn1 = {{(ACCUMULATOR_BITWIDTH - FORMAT_BITWIDTH){mulOut[MUL_OUT_BITWIDTH - 1]}}, mulOut};
+    assign adderIn1 = {{(ACCUMULATOR_BITWIDTH - MUL_OUT_BITWIDTH){mulOut[MUL_OUT_BITWIDTH - 1]}}, mulOut};
 
     //Arithmetic Units:
     Adder #(.BIT_WIDTH(ACCUMULATOR_BITWIDTH)) accumlate (

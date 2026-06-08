@@ -13,8 +13,9 @@
 //     - clk, rst
 //     - disp_payload, disp_push: from Sequencer (slot index 2)
 //     - sa_row_in: INT32[SA_COLS] partial-sum row from SA_Block
-//     - sa_row_valid: 1-cycle pulse on SA tile retire (reserved; not driving
-//       psb internally — psb.row_valid is driven by Dispatch_PSB)
+//     - sa_row_valid: 1-cycle pulse on SA tile retire; drives psb.sa_capture to
+//       latch the SA result row into the PSB buffer (matrix-vector path)
+//     - requant_armed: Requant pipeline in FROM_PSB mode; gates OP_PSB_FLUSH
 //     - dep_sa_to_psb_empty, dep_req_to_psb_empty: upstream readiness
 //     - dep_psb_to_sa_full, dep_psb_to_req_full: downstream backpressure
 // Outputs:
@@ -40,6 +41,9 @@ module PSB_Block (
     // Datapath in — from SA_Block
     input  logic signed [ACCUM_WIDTH-1:0]       sa_row_in [SA_COLS-1:0],
     input  logic                                sa_row_valid,
+
+    // Requant arm handshake — gates OP_PSB_FLUSH until Requant is in FROM_PSB
+    input  logic                                requant_armed,
 
     // Datapath out — to Requant_Block
     output logic [SA_COLS*ACCUM_WIDTH-1:0]      requant_row_out,
@@ -140,6 +144,7 @@ module PSB_Block (
         .psb_busy       (psb_busy_w),
         .psb_acc_done   (psb_acc_done_w),
         .psb_flush_done (psb_flush_done_w),
+        .requant_armed  (requant_armed),
         .psb_acc        (psb_acc_w),
         .psb_flush      (psb_flush_w),
         .row_valid      (psb_row_valid_w),
@@ -161,6 +166,7 @@ module PSB_Block (
         .psb_acc         (psb_acc_w),
         .psb_flush       (psb_flush_w),
         .row_valid       (psb_row_valid_w),
+        .sa_capture      (sa_row_valid),
         .sa_row_in       (sa_row_in),
         .requant_row_out (requant_row_out),
         .row_index_out   (row_index_out),
@@ -169,11 +175,5 @@ module PSB_Block (
         .flush_done      (psb_flush_done_w),
         .busy            (psb_busy_w)
     );
-
-    // sa_row_valid is reserved for future use (e.g. an SA-driven row_valid
-    // pipeline). Currently psb.row_valid is sourced from Dispatch_PSB, so
-    // this port is observed but not consumed inside the block.
-    logic _unused_sa_row_valid;
-    assign _unused_sa_row_valid = sa_row_valid;
 
 endmodule

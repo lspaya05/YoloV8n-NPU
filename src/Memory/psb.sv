@@ -11,6 +11,9 @@
 //     - psb_acc: Command to start accumulating the next SA tile into the buffer
 //     - psb_flush: Command to start flushing the completed tile to the requant unit
 //     - row_valid: Asserted when sa_row_in holds a valid partial-sum row
+//     - sa_capture: SA-driven single-row capture strobe. Accumulates sa_row_in
+//                   into buffer[0] while idle, without entering S_ACC (used for
+//                   the matrix-vector path instead of microcode OP_PSB_ACC)
 //     - sa_row_in: ARRAY_LENGTH unpacked ACCUMULATOR_BITWIDTH-bit INT32 partial sums from the systolic array
 // Outputs:
 //     - requant_row_out: Packed ARRAY_LENGTH x ACCUMULATOR_BITWIDTH-bit row driven to the requant unit each flush cycle
@@ -32,6 +35,7 @@ module psb #(
     input logic psb_acc,
     input logic psb_flush,
     input logic row_valid,
+    input logic sa_capture,
     input logic signed [ACCUMULATOR_BITWIDTH - 1 : 0] sa_row_in [ARRAY_LENGTH - 1 : 0],
 
     output logic [ARRAY_LENGTH*ACCUMULATOR_BITWIDTH - 1 : 0] requant_row_out,
@@ -59,8 +63,9 @@ module psb #(
     logic last_acc_row;
     logic last_flush_row;
 
-    assign last_acc_row   = (acc_row_count   == ARRAY_HEIGHT - 1);
-    assign last_flush_row = (flush_row_count == ARRAY_HEIGHT - 1);
+    localparam logic [$clog2(ARRAY_HEIGHT)-1:0] LastRow = ($clog2(ARRAY_HEIGHT))'(ARRAY_HEIGHT - 1);
+    assign last_acc_row   = (acc_row_count   == LastRow);
+    assign last_flush_row = (flush_row_count == LastRow);
 
     always_comb begin
         unique case (ps)
@@ -192,6 +197,14 @@ module psb #(
 
                 S_IDLE: begin
                     if (psb_acc && row_valid) begin
+                        for (int col = 0; col < ARRAY_LENGTH; col = col + 1) begin
+                            buffer[0][col] <= buffer[0][col] + sa_row_in[col];
+                        end
+                    end else if (sa_capture) begin
+                        // SA-driven auto-capture: latch the single SA result row
+                        // into buffer[0] without leaving S_IDLE (matrix-vector
+                        // path; no OP_PSB_ACC instruction needed). busy stays low
+                        // so the following OP_PSB_FLUSH can fire immediately.
                         for (int col = 0; col < ARRAY_LENGTH; col = col + 1) begin
                             buffer[0][col] <= buffer[0][col] + sa_row_in[col];
                         end

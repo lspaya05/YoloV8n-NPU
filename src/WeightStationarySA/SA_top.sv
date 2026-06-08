@@ -80,9 +80,38 @@ module SA_top #(
     assign done = controller_done_c;
     assign busy = controller_busy_c;
 
-    // MatrixMulOut is a held result register, not a live combinational view into
-    // the datapath. Clear it on reset, and also clear it when a new transaction
-    // is accepted so stale results are not mistaken for the next answer.
+    // Drain-phase diagonal output de-skew.
+    // The array streams its bottom row out diagonally: column j becomes valid one
+    // cycle after column j-1 and is then overwritten as later partial sums shift
+    // down. A single-cycle capture of the whole row therefore only ever catches
+    // one column (the all-zeros bug). Instead, track the drain phase and latch
+    // each column at its own valid cycle, holding the assembled row until the
+    // next MATMUL. validActivations is high only during RUN, so its falling edge
+    // marks the first drain cycle and column j is valid on drain cycle j.
+    logic valid_act_prev;
+    logic in_drain;
+    logic [$clog2(ARRAY_LENGTH):0] drain_cnt;
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            valid_act_prev <= 1'b0;
+            in_drain       <= 1'b0;
+            drain_cnt      <= '0;
+        end else begin
+            valid_act_prev <= validActivations;
+            if (start && !busy) begin
+                in_drain  <= 1'b0;
+                drain_cnt <= '0;
+            end else if (valid_act_prev && !validActivations) begin
+                // RUN just ended -> drain begins; column 0 lands first.
+                in_drain  <= 1'b1;
+                drain_cnt <= '0;
+            end else if (in_drain) begin
+                drain_cnt <= drain_cnt + 1'b1;
+            end
+        end
+    end
+
     always_ff @(posedge clk) begin
         if (rst) begin
             for (int col = 0; col < ARRAY_LENGTH; col = col + 1)
@@ -90,17 +119,10 @@ module SA_top #(
         end else if (start && !busy) begin
             for (int col = 0; col < ARRAY_LENGTH; col = col + 1)
                 MatrixMulOut[col] <= '0;
-        end
-    end
-
-    // Capture the datapath result during the DONE window.
-    // Using the negative edge here gives the datapath one last positive edge to
-    // finish the final drain update first, then we grab the stable bottom-row
-    // outputs before the next cycle begins.
-    always_ff @(negedge clk) begin
-        if (!rst && controller_done_c) begin
+        end else if (in_drain) begin
             for (int col = 0; col < ARRAY_LENGTH; col = col + 1)
-                MatrixMulOut[col] <= matrixMulOut_internal[col];
+                if (drain_cnt == ($clog2(ARRAY_LENGTH)+1)'(col))
+                    MatrixMulOut[col] <= matrixMulOut_internal[col];
         end
     end
 

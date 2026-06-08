@@ -35,6 +35,7 @@ module DepFIFO #(
         end
     end
 
-    assign full  = (mem == DEPTH);
-    assign empty = (mem == 0);
+    localparam logic [$clog2(DEPTH):0] FullVal = ($clog2(DEPTH)+1)'(DEPTH);
+    assign full  = (mem == FullVal);
+    assign empty = (mem == '0);
 endmodule

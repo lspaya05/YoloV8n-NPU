@@ -16,6 +16,7 @@ module Dispatch_PSB_tb();
     logic         psb_busy;
     logic         psb_acc_done;
     logic         psb_flush_done;
+    logic         requant_armed;
     logic         psb_acc;
     logic         psb_flush;
     logic         row_valid;
@@ -51,6 +52,7 @@ module Dispatch_PSB_tb();
         psb_busy = 1'b0;
         psb_acc_done = 1'b0;
         psb_flush_done = 1'b0;
+        requant_armed = 1'b1;  // flush enabled (gate added for NPU arm-handshake)
         repeat (4) @(posedge clk);
         rst = 1'b0;
         @(posedge clk);

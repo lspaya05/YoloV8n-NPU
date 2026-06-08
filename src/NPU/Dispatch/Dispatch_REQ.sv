@@ -76,10 +76,14 @@ module Dispatch_REQ #(
         S_WRITE_DONE
     } state_e;
 
-    state_e          state;
-    logic [2:0]      coeff_cnt;     // 0..ChCount inclusive
-    logic [9:0]      target_count;  // latched ch_count
-    logic [9:0]      beat_count;    // valid_o beats observed
+    // Coeff-load counter: wide enough to hold 0..ChCount inclusive (e.g. 5 bits
+    // for ChCount = 16 per-channel dequant).
+    localparam int   CoeffCntW = $clog2(ChCount + 1);
+
+    state_e            state;
+    logic [CoeffCntW-1:0] coeff_cnt;     // 0..ChCount inclusive
+    logic [9:0]        target_count;  // latched ch_count (beat count)
+    logic [9:0]        beat_count;    // valid_o beats observed
 
     // bias is fixed 0 for SA-path requant
     assign req_bias = '0;
@@ -96,7 +100,7 @@ module Dispatch_REQ #(
             vpu_out_wdata   <= 128'h0;
             vpu_out_wen     <= 1'b0;
             unit_done       <= 1'b0;
-            coeff_cnt       <= 3'h0;
+            coeff_cnt       <= '0;
             target_count    <= 10'h0;
             beat_count      <= 10'h0;
         end else begin
@@ -113,7 +117,7 @@ module Dispatch_REQ #(
                             target_count    <= req_payload.ch_count;
                             beat_count      <= 10'h0;
                             vpu_out_waddr   <= '0;
-                            coeff_cnt       <= 3'h0;
+                            coeff_cnt       <= '0;
                             req_coeff_raddr <= '0;
                             state           <= S_LOAD_COEFF;
                         end else begin
@@ -127,9 +131,9 @@ module Dispatch_REQ #(
                 // shadow[coeff_cnt-1]. Total 1+ChCount cycles to fully load.
                 S_LOAD_COEFF: begin
                     // Capture lagged rdata into shadow.
-                    if (coeff_cnt > 3'h0 && coeff_cnt <= 3'(ChCount)) begin
+                    if (coeff_cnt > '0 && coeff_cnt <= CoeffCntW'(ChCount)) begin
                         for (int g = 0; g < ChCount; g = g + 1) begin
-                            if (3'(g) == coeff_cnt - 3'h1) begin
+                            if (CoeffCntW'(g) == coeff_cnt - 1'b1) begin
                                 req_m0_a[g*M0Width +: M0Width] <=
                                     req_coeff_rdata[COEFF_M_WIDTH+COEFF_S_WIDTH-1
                                                     : COEFF_S_WIDTH];
@@ -140,9 +144,9 @@ module Dispatch_REQ #(
                         end
                     end
 
-                    if (coeff_cnt < 3'(ChCount)) begin
+                    if (coeff_cnt < CoeffCntW'(ChCount)) begin
                         req_coeff_raddr <= req_coeff_raddr + 1'b1;
-                        coeff_cnt       <= coeff_cnt + 3'h1;
+                        coeff_cnt       <= coeff_cnt + 1'b1;
                     end else begin
                         // All coeffs captured this cycle. Switch to RUN.
                         req_mode <= 2'b01;  // FROM_PSB

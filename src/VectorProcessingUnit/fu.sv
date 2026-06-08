@@ -40,11 +40,11 @@ module fu(in1, in2, out, opcode);
 
         case (opcode)
             3'b000: begin // ADD: add the two inputs
-                tmp = a + b;
+                tmp = {{8{a[7]}}, a} + {{8{b[7]}}, b};
                 out = clamp_int8(tmp);
             end
             3'b001: begin // SUB: subtract second input from first
-                tmp = a - b;
+                tmp = {{8{a[7]}}, a} - {{8{b[7]}}, b};
                 out = clamp_int8(tmp);
             end
             3'b010: begin // MUL: multiply then shift right by 7 bits

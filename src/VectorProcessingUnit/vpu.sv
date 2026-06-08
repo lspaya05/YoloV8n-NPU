@@ -84,26 +84,23 @@ module vpu #(
         endcase
     end
 
-    // Generate the VPU lanes. Each lane has one VPE instance.
-    // The rightmost lane takes Data-H from data_h_edge, while all other
-    // lanes take Data-H from the output of the lane to their right.
+    /* verilator lint_off UNOPTFLAT */
+    logic [7:0] lane_outs [LANES]; // acyclic chain; Verilator can't prove it across a generate loop
+    /* verilator lint_on UNOPTFLAT */
+
     generate
-        for (lane = 0; lane < LANES; lane = lane + 1) begin : vpe_lanes
+        for (lane = 0; lane < LANES; lane = lane + 1) begin : gen_vpe_lanes
             logic [7:0] lane_in_a;
             logic [7:0] lane_in_b;
             logic [7:0] lane_data_h;
-            logic [7:0] lane_out;
 
-            // Pick this lane's 8-bit value out of the packed input buses.
             assign lane_in_a = in_a[(lane*8)+7 : lane*8];
             assign lane_in_b = in_b[(lane*8)+7 : lane*8];
 
-            if (lane == LANES-1) begin : right_edge
-                // The rightmost lane has no right neighbor, so it uses the edge input.
+            if (lane == LANES-1) begin : gen_right_edge
                 assign lane_data_h = data_h_edge;
-            end else begin : right_neighbor
-                // Other lanes receive Data-H from the VPE immediately to the right.
-                assign lane_data_h = out[((lane+1)*8)+7 : (lane+1)*8];
+            end else begin : gen_right_neighbor
+                assign lane_data_h = lane_outs[lane+1];
             end
 
             vpe lane_vpe (
@@ -117,11 +114,15 @@ module vpu #(
                 .in_a(lane_in_a),
                 .in_b(lane_in_b),
                 .data_h_in(lane_data_h),
-                .out(lane_out)
+                .out(lane_outs[lane])
             );
+        end
+    endgenerate
 
-            // Put this lane's 8-bit result back into the packed output bus.
-            assign out[(lane*8)+7 : lane*8] = lane_out;
+    genvar k;
+    generate
+        for (k = 0; k < LANES; k = k + 1) begin : gen_pack_out
+            assign out[k*8 +: 8] = lane_outs[k];
         end
     endgenerate
 

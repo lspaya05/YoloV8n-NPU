@@ -11,7 +11,6 @@ def test_mux2to1_interface():
         module="test_mux2to1",
         simulator="verilator",
         timescale="1ns/1ps",
-        build_args=["--trace"],
-        extra_env={"WAVES": "1"},
+        waves=True,
         sim_build="sim_build/mux2to1_test"    # Isolates waveforms and logs into a unique folder
     )
