@@ -191,10 +191,60 @@ gave zeros. In dataflow order:
 
 ## Status / next steps
 
-- [ ] Re-run `pytest tb/CocoTB/NPU/test_single_layer_interface.py` to confirm the
-      PingPongBuffer fix yields the golden output (final confirmation pending).
-- [ ] Remove the `_diag_probe` instrumentation from `test_single_layer.py`.
-- [ ] Run the rest of the suite (`quant_stress`, `zero_delay`, `source_starvation`,
-      `sink_backpressure`).
-- [ ] Re-verify the standalone ModelSim TBs touched above.
+- [x] Re-run `test_single_layer_interface.py` — **PASSES** (golden output).
+- [x] Remove the `_diag_probe` instrumentation from `test_single_layer.py`.
+- [x] Run the rest of the suite — **all green** (`quant_stress`, `zero_delay`,
+      `source_starvation`, `sink_backpressure` + `single_layer` = 5/5 pass).
+- [ ] **Re-verify ModelSim TBs (needs Questa, not runnable in WSL/Verilator):**
+      `Dispatch_SA_tb.sv` assertions updated for the new weight-addr lead;
+      `SA_top_tb.sv` golden-capture is coupled to the OLD single-shot capture and
+      will need its reference model re-tuned to the de-skew timing — unverified.
 - [ ] Add a non-uniform per-channel M/S `gen_tile` to actually exercise `ChCount=16`.
+
+---
+
+# Resolution 2 — single-layer GREEN (2026-06-08)
+
+The PingPong fix (Resolution 1) removed SA starvation but exposed **two more
+stacked bugs**, both now fixed; the full cocotb NPU suite is bit-exact green.
+
+## Root causes found (via in-sim probing, see git history of `test_single_layer.py`)
+
+1. **Missing output de-skew (all-zeros).** The systolic array emits its bottom
+   row **diagonally** — column *j* is valid only on drain-cycle *j*, then
+   overwritten. The old `SA_top` `done_prev` logic took **one** snapshot at DONE
+   (~15 cyc after the wavefront had passed) → captured zeros. The PSB then
+   faithfully stored those zeros. **Fix:** `src/WeightStationarySA/SA_top.sv` —
+   replaced the single-shot capture with a **drain-phase diagonal collector** that
+   latches each column on its own valid cycle (keyed off `validActivations`
+   falling edge) and holds the assembled row.
+
+2. **Weight-load off-by-one (wrong values).** `PingPongBuffer.sv` has a 1-cycle
+   **registered read** (`r_data <= bank[r_addr]`); `Dispatch_SA` drove the read
+   address aligned with the LOAD latch → W[0] loaded twice, W[15] dropped.
+   **Fix:** `src/NPU/Dispatch/Dispatch_SA.sv` — weight read address now **leads
+   `phase_cnt` by one** (`phase_cnt+1`) to hide the latency.
+
+3. **Weight orientation (transpose contract).** The array loads row-packed weight
+   words into its *columns* and so computes `loadedᵀ @ A`; the layer needs
+   `W @ A`. **Fix (by design choice):** store weights **pre-transposed** in the
+   weight memory image — `tb/CocoTB/NPU/npu_golden.py` `build_wt_mem` now packs
+   `W.T[::-1]` (transpose + row-reverse, matching the load's reversal). Golden
+   stays `W @ A`. This is the accelerator's weight-layout contract (host
+   pre-transposes), not an RTL bug.
+
+Proven in-sim before/after: `collected == pe.T @ A` and `dact == A` (engine +
+activation feed correct); after fixes `pe == W.T` ⇒ output `== W @ A`.
+
+## Files changed this resolution
+
+| File | Change |
+|------|--------|
+| `src/WeightStationarySA/SA_top.sv` | Diagonal drain-phase output collector (replaces `done_prev` single-shot capture). |
+| `src/NPU/Dispatch/Dispatch_SA.sv` | Weight read addr leads by one cycle (BRAM read-latency compensation). |
+| `tb/CocoTB/NPU/npu_golden.py` | `build_wt_mem` packs `W.T[::-1]` (pre-transposed weight contract). |
+| `tb/CocoTB/NPU/test_single_layer.py` | Removed temporary `_diag_probe` instrumentation. |
+| `tb/NPU/Dispatch/Dispatch_SA_tb.sv` | Updated weight-addr-walk assertions for the new lead. |
+
+⚠️ **Not yet re-verified (no Questa here):** `SA_top_tb.sv` reference-capture is
+tied to the old capture timing and likely needs its golden model updated.

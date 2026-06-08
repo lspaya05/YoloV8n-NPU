@@ -71,8 +71,17 @@ def build_dma_mem(A, M, S):
 
 
 def build_wt_mem(W):
-    """Weight rows at words 0x600..0x60F."""
+    """Weight tile at words 0x600..0x60F, pre-transposed for the systolic array.
+
+    The weight-stationary array loads one full row word per cycle into its
+    *columns* (so it computes loadedᵀ @ A) and its down-propagation load reverses
+    row order (PE row i ends up holding load-step 15-i). To make the array compute
+    the layer's W @ A, the host stores W transposed and row-reversed — i.e. word i
+    holds column (15-i) of W. This transpose is the accelerator's weight-layout
+    contract; the golden model keeps the natural W @ A.
+    """
+    W_native = np.ascontiguousarray(W.T[::-1])  # row i = column (15-i) of W
     mem = {}
-    for i, w in enumerate(pack_weights_128b(W)):
+    for i, w in enumerate(pack_weights_128b(W_native)):
         mem[0x600 + i] = w
     return mem

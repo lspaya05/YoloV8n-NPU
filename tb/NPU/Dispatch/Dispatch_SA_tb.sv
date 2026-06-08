@@ -84,13 +84,16 @@ module Dispatch_SA_tb();
         chk(fifo_rd_en && sa_start, "MATMUL pops FIFO and starts SA");
         chk(sa_wt_raddr == '0 && sa_act_raddr == '0, "MATMUL clears read addresses");
 
-        // Testcase 5: during the load phase the weight read address should walk forward
+        // Testcase 5: during the load phase the weight read address walks forward,
+        // leading by one cycle to hide the weight bank's 1-cycle registered read
+        // latency (S_IDLE issues addr 0; the registered pointer then advances to
+        // 1, 2, ... so data for row r arrives the cycle the array latches row r).
         fifo_empty = 1'b1;
         @(posedge clk); #1ps;
-        chk(sa_wt_raddr == '0, "first running cycle reads weight address 0");
+        chk(sa_wt_raddr == 1, "first running cycle leads weight address to 1");
         repeat (5) @(posedge clk);
         #1ps;
-        chk(sa_wt_raddr == 5, "weight address walks during load phase");
+        chk(sa_wt_raddr == 6, "weight address walks (leads by one) during load phase");
 
         // Testcase 6: after the load phase the activation address should start from zero
         repeat (SA_ROWS - 5) @(posedge clk);

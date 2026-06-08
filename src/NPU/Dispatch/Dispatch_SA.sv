@@ -105,8 +105,14 @@ module Dispatch_SA (
                 S_RUNNING: begin
                     // Walk weight raddr through LOAD window, then activation
                     // raddr through RUN window. Hold after to ride out DRAIN.
+                    // The weight bank (PingPongBuffer) has a 1-cycle registered
+                    // read latency: r_data(t) = bank[r_addr(t-1)]. Lead the read
+                    // pointer by one (phase_cnt+1) so the data for row r lands on
+                    // the cycle the array latches row r. S_IDLE already issued
+                    // addr 0, so the first LOAD cycle sees row 0; without the lead
+                    // row 0 is captured twice and row 15 is dropped.
                     if (phase_cnt < LoadCyc) begin
-                        sa_wt_raddr <= phase_cnt[$clog2(WT_BUF_DEPTH)-1:0];
+                        sa_wt_raddr <= ($clog2(WT_BUF_DEPTH))'(phase_cnt + 8'd1);
                     end
                     if ((phase_cnt >= LoadCyc) &&
                         (phase_cnt <  (LoadCyc + RunCyc))) begin
