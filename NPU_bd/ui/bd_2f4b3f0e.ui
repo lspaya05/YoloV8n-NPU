@@ -1,0 +1,45 @@
+{
+   "ActiveEmotionalView":"Default View",
+   "Default View_Layers":"/clk_wiz_0_clk_out1:true|",
+   "Default View_ScaleFactor":"0.717936",
+   "Default View_TopLeft":"-20,-503",
+   "Display-PortTypeClock":"true",
+   "ExpandedHierarchyInLayout":"",
+   "Interfaces View_Layers":"/clk_wiz_0_clk_out1:false|",
+   "Interfaces View_ScaleFactor":"1.0",
+   "Interfaces View_TopLeft":"-23,-101",
+   "guistr":"# # String gsaved with Nlview 7.8.0 2024-04-26 e1825d835c VDI=44 GEI=38 GUI=JA:21.0
+#  -string -flagsOSRD
+preplace inst zynq_ultra_ps_e_0 -pg 1 -lvl 1 -x 350 -y -290 -defaultsOSRD
+preplace inst clk_wiz_0 -pg 1 -lvl 1 -x 350 -y 180 -defaultsOSRD
+preplace inst NPU_0 -pg 1 -lvl 1 -x 350 -y -20 -defaultsOSRD
+preplace inst axi_smc -pg 1 -lvl 3 -x 1280 -y -190 -defaultsOSRD
+preplace inst rst_clk_wiz_0_150M -pg 1 -lvl 2 -x 900 -y 150 -defaultsOSRD
+preplace inst axi_smc_1 -pg 1 -lvl 3 -x 1280 -y -390 -defaultsOSRD
+preplace netloc zynq_ultra_ps_e_0_pl_clk0 1 0 3 40 -440 720 -140 N
+preplace netloc clk_wiz_0_clk_out1 1 0 3 10 -470 700 -350 1140
+preplace netloc clk_wiz_0_locked 1 1 1 N 190
+preplace netloc rst_clk_wiz_0_150M_peripheral_aresetn 1 2 1 1130 -340n
+preplace netloc rst_clk_wiz_0_150M_peripheral_reset 1 0 3 50 100 730J 50 1070
+preplace netloc zynq_ultra_ps_e_0_pl_resetn0 1 0 2 50 110 690
+preplace netloc NPU_0_irq_done 1 0 2 -10 -490 650
+preplace netloc zynq_ultra_ps_e_0_M_AXI_HPM0_LPD 1 1 2 NJ -300 1100
+preplace netloc axi_smc_M00_AXI 1 0 4 50 -140 680J -80 NJ -80 1420
+preplace netloc NPU_0_dma 1 1 2 660J -430 1080
+preplace netloc axi_smc_1_M00_AXI 1 0 4 0 -480 NJ -480 1120J -70 1450
+preplace netloc axi_smc_1_M01_AXI 1 0 4 20 -460 NJ -460 1090J -60 1440
+preplace netloc axi_smc_1_M02_AXI 1 0 4 30 -450 NJ -450 1070J -50 1430
+preplace netloc NPU_0_seq 1 1 2 670 -420 NJ
+preplace netloc NPU_0_st 1 1 2 710 -400 NJ
+preplace netloc NPU_0_wt 1 1 2 730J -360 1110
+preplace netloc zynq_ultra_ps_e_0_M_AXI_HPM0_FPD 1 1 2 NJ -340 1110
+preplace netloc zynq_ultra_ps_e_0_M_AXI_HPM1_FPD 1 1 2 NJ -320 1080
+levelinfo -pg 1 -30 350 900 1280 1470
+pagesize -pg 1 -db -bbox -sgen -260 -500 1470 490
+"
+}
+{
+   "da_axi4_cnt":"9",
+   "da_board_cnt":"3",
+   "da_zynq_ultra_ps_e_cnt":"1"
+}
